@@ -83,6 +83,10 @@
     exportDiaryBtn: $('exportDiaryBtn'), allDiariesLinkBtn: $('allDiariesLinkBtn'), deleteFromCoverBtn: $('deleteFromCoverBtn'),
     signatureSheetBackdrop: $('signatureSheetBackdrop'), signatureSheet: $('signatureSheet'),
     signatureInput: $('signatureInput'), signatureSaveBtn: $('signatureSaveBtn'),
+    coverThemeBtn: $('coverThemeBtn'), coverStickerBtn: $('coverStickerBtn'), coverStickerLayer: $('coverStickerLayer'),
+    coverThemeSheetBackdrop: $('coverThemeSheetBackdrop'), coverThemeSheet: $('coverThemeSheet'), coverThemeOptions: $('coverThemeOptions'),
+    coverStickerSheetBackdrop: $('coverStickerSheetBackdrop'), coverStickerSheet: $('coverStickerSheet'),
+    coverStickerOptions: $('coverStickerOptions'), coverStickerClearBtn: $('coverStickerClearBtn'),
 
     bookScreen: $('bookScreen'), bookBackBtn: $('bookBackBtn'), pageIndicator: $('pageIndicator'),
     fontBtn: $('fontBtn'), fullscreenBtn: $('fullscreenBtn'), printBtn: $('printBtn'),
@@ -93,8 +97,10 @@
     fullscreenReader: $('fullscreenReader'), fsScrim: $('fsScrim'), fsSheet: $('fsSheet'),
     fsToolbar: $('fsToolbar'), fsCloseBtn: $('fsCloseBtn'),
     fsThemeBtn: $('fsThemeBtn'), fsStickerBtn: $('fsStickerBtn'), fsFontBtn: $('fsFontBtn'), fsExpandBtn: $('fsExpandBtn'),
+    fsVoiceNoteBtn: $('fsVoiceNoteBtn'),
     fsHeadline: $('fsHeadline'), fsDate: $('fsDate'), fsBody: $('fsBody'), fsMicFab: $('fsMicFab'),
     fsContent: $('fsContent'), fsStickerLayer: $('fsStickerLayer'),
+    recordingIndicator: $('recordingIndicator'), recordingTime: $('recordingTime'),
 
     fontSheetBackdrop: $('fontSheetBackdrop'), fontSheet: $('fontSheet'), fontOptions: $('fontOptions'),
     moodSheetBackdrop: $('moodSheetBackdrop'), moodSheet: $('moodSheet'), moodOptions: $('moodOptions'),
@@ -173,6 +179,8 @@
         createdAt: new Date().toISOString(),
         font: 'serif',
         theme: 'parchment',
+        coverTheme: 'classic',
+        coverStickers: [],
         signature: 'made by Yash',
         pages: [{
           id: uid(),
@@ -187,6 +195,8 @@
     // migrate diaries/pages saved before theme/signature/stickers existed
     diaries.forEach(d => {
       if (!d.theme) d.theme = 'parchment';
+      if (!d.coverTheme) d.coverTheme = 'classic';
+      if (!Array.isArray(d.coverStickers)) d.coverStickers = [];
       if (!d.signature) d.signature = 'made by Yash';
       d.pages.forEach(p => {
         if (!Array.isArray(p.stickers)) p.stickers = [];
@@ -658,6 +668,8 @@
       name,
       createdAt: new Date().toISOString(),
       font: 'serif',
+      coverTheme: 'classic',
+      coverStickers: [],
       pages: [{ id: uid(), headline, date: new Date().toISOString(), text: text || '' }],
     };
     diaries.unshift(diary);
@@ -677,6 +689,8 @@
     el.bookCoverTitle.textContent = diary.name;
     el.bookCoverMeta.textContent = `${diary.pages.length} ${diary.pages.length === 1 ? 'page' : 'pages'} · ${formatDateShort(new Date(diary.createdAt))}`;
     el.bookCoverSignature.textContent = diary.signature || 'made by Yash';
+    el.bookCover.dataset.coverTheme = diary.coverTheme || 'classic';
+    renderCoverStickers(diary);
     showScreen('cover');
   }
 
@@ -710,6 +724,130 @@
     el.bookCoverSignature.textContent = val;
     closeSignatureSheet();
     showToast('Signature updated');
+  }
+
+  // ============ COVER THEME (color/pattern for the book cover itself) ============
+
+  const COVER_THEME_KEYS = ['classic', 'rosewood', 'midnight', 'forest', 'ocean', 'lavender', 'blush', 'sand', 'sunset', 'mint', 'marble', 'floral'];
+
+  function openCoverThemeSheet() {
+    const diary = currentDiary();
+    if (!diary) return;
+    const active = diary.coverTheme || 'classic';
+    el.coverThemeOptions.querySelectorAll('.cover-theme-swatch').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.coverTheme === active);
+    });
+    el.coverThemeSheetBackdrop.hidden = false;
+    el.coverThemeSheet.hidden = false;
+    requestAnimationFrame(() => {
+      el.coverThemeSheetBackdrop.classList.add('show');
+      el.coverThemeSheet.classList.add('show');
+    });
+  }
+
+  function closeCoverThemeSheet() {
+    el.coverThemeSheetBackdrop.classList.remove('show');
+    el.coverThemeSheet.classList.remove('show');
+    setTimeout(() => { el.coverThemeSheetBackdrop.hidden = true; el.coverThemeSheet.hidden = true; }, 350);
+  }
+
+  function selectCoverTheme(themeKey) {
+    const diary = currentDiary();
+    if (!diary) return;
+    diary.coverTheme = themeKey;
+    persist();
+    el.bookCover.dataset.coverTheme = themeKey;
+    el.coverThemeOptions.querySelectorAll('.cover-theme-swatch').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.coverTheme === themeKey);
+    });
+  }
+
+  // ============ COVER STICKERS (drag + resize, placed on the book cover) ============
+
+  function openCoverStickerSheet() {
+    el.coverStickerSheetBackdrop.hidden = false;
+    el.coverStickerSheet.hidden = false;
+    requestAnimationFrame(() => {
+      el.coverStickerSheetBackdrop.classList.add('show');
+      el.coverStickerSheet.classList.add('show');
+    });
+  }
+  function closeCoverStickerSheet() {
+    el.coverStickerSheetBackdrop.classList.remove('show');
+    el.coverStickerSheet.classList.remove('show');
+    setTimeout(() => { el.coverStickerSheetBackdrop.hidden = true; el.coverStickerSheet.hidden = true; }, 350);
+  }
+
+  function addStickerToCover(stickerKey) {
+    const diary = currentDiary();
+    if (!diary) return;
+    if (!Array.isArray(diary.coverStickers)) diary.coverStickers = [];
+    diary.coverStickers.push({
+      id: uid(), key: stickerKey,
+      x: 30 + Math.random() * 20, y: 20 + Math.random() * 20,
+      size: 52,
+    });
+    persist();
+    closeCoverStickerSheet();
+    renderCoverStickers(diary);
+    showToast('Sticker added — drag to move it');
+  }
+
+  function renderCoverStickers(diary) {
+    const container = el.coverStickerLayer;
+    if (!container) return;
+    container.querySelectorAll('.placed-sticker').forEach(n => n.remove());
+    if (!diary || !Array.isArray(diary.coverStickers) || !diary.coverStickers.length) {
+      syncContainerPointerEvents(container);
+      return;
+    }
+    diary.coverStickers.forEach(st => {
+      const node = document.createElement('div');
+      node.className = 'placed-sticker';
+      node.style.left = st.x + '%';
+      node.style.top = st.y + '%';
+      node.style.width = st.size + 'px';
+      node.style.height = st.size + 'px';
+      node.dataset.stickerId = st.id;
+
+      const img = document.createElement('img');
+      img.src = STICKER_LIBRARY[st.key] || '';
+      img.alt = st.key;
+      img.draggable = false;
+      node.appendChild(img);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'sticker-remove-btn';
+      removeBtn.textContent = '×';
+      removeBtn.style.display = 'none';
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        diary.coverStickers = diary.coverStickers.filter(s => s.id !== st.id);
+        persist();
+        node.remove();
+        syncContainerPointerEvents(container);
+      });
+      node.appendChild(removeBtn);
+
+      const handle = document.createElement('div');
+      handle.className = 'sticker-resize-handle';
+      handle.style.display = 'none';
+      node.appendChild(handle);
+
+      wireStickerDragResize(node, { stickers: diary.coverStickers }, st, container, removeBtn, handle);
+      container.appendChild(node);
+    });
+    syncContainerPointerEvents(container);
+  }
+
+  function clearCoverStickers() {
+    const diary = currentDiary();
+    if (!diary) return;
+    diary.coverStickers = [];
+    persist();
+    renderCoverStickers(diary);
+    closeCoverStickerSheet();
+    showToast('Cover stickers cleared');
   }
 
   // ============ BOOK READING SCREEN — two-page spread ============
@@ -1165,7 +1303,9 @@
     handle.addEventListener('pointerup', onUp);
   }
 
-  // ============ VOICE CLIP WIDGETS (draggable/resizable audio note placed on a page) ============
+  // ============ VOICE CLIP WIDGETS (real recorded audio, draggable/resizable, WhatsApp-style bubble) ============
+
+  const WAVE_BAR_COUNT = 22;
 
   function renderVoiceClipsForSheet(layerEl, page, pageIdx, opts) {
     opts = opts || {};
@@ -1183,28 +1323,46 @@
       node.className = 'placed-voice-clip';
       node.style.left = clip.x + '%';
       node.style.top = clip.y + '%';
-      node.style.width = (clip.width || 150) + 'px';
+      node.style.width = (clip.width || 160) + 'px';
       node.dataset.clipId = clip.id;
 
       const playBtn = document.createElement('button');
       playBtn.className = 'voice-clip-play';
-      playBtn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+      const playIcon = '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+      const pauseIcon = '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
+      playBtn.innerHTML = playIcon;
       node.appendChild(playBtn);
+
+      const body = document.createElement('div');
+      body.className = 'voice-clip-body';
 
       const wave = document.createElement('span');
       wave.className = 'voice-clip-wave';
-      for (let i = 0; i < 14; i++) {
+      const amps = (clip.waveform && clip.waveform.length) ? clip.waveform : null;
+      const bars = [];
+      for (let i = 0; i < WAVE_BAR_COUNT; i++) {
         const bar = document.createElement('span');
-        bar.style.height = (6 + Math.random() * 12) + 'px';
+        const amp = amps ? amps[i] : (0.3 + Math.random() * 0.7);
+        bar.style.height = Math.max(3, Math.round(amp * 18)) + 'px';
+        bar.classList.add('wave-active');
         wave.appendChild(bar);
+        bars.push(bar);
       }
-      node.appendChild(wave);
+      body.appendChild(wave);
+
+      const durationEl = document.createElement('span');
+      durationEl.className = 'voice-clip-duration';
+      durationEl.textContent = clip.duration ? formatClipDuration(clip.duration) : (clip.dataUrl ? '0:00' : 'no audio');
+      body.appendChild(durationEl);
+
+      node.appendChild(body);
 
       const removeBtn = document.createElement('button');
       removeBtn.className = 'voice-clip-remove';
       removeBtn.textContent = '×';
       removeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (audioEl) { audioEl.pause(); }
         page.voiceClips = page.voiceClips.filter(c => c.id !== clip.id);
         persist();
         node.remove();
@@ -1217,16 +1375,68 @@
       node.appendChild(handle);
 
       let audioEl = clip.dataUrl ? new Audio(clip.dataUrl) : null;
+      let rafId = null;
+
+      function stopProgressLoop() {
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = null;
+        node.classList.remove('playing');
+      }
+
+      function tickProgress() {
+        if (!audioEl || audioEl.paused) { stopProgressLoop(); return; }
+        const pct = audioEl.duration ? (audioEl.currentTime / audioEl.duration) : 0;
+        const filledCount = Math.round(pct * bars.length);
+        bars.forEach((b, i) => b.classList.toggle('wave-played', i < filledCount));
+        rafId = requestAnimationFrame(tickProgress);
+      }
+
       playBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (audioEl) { audioEl.currentTime = 0; audioEl.play().catch(() => {}); }
-        else showToast('Voice note attached (transcribed to text on this page)');
+        if (!audioEl) { showToast('This voice note has no recorded audio.'); return; }
+        if (audioEl.paused) {
+          document.querySelectorAll('.placed-voice-clip.playing').forEach(n => {
+            if (n !== node) n.dispatchEvent(new Event('voiceclip-pause-others'));
+          });
+          audioEl.play().catch(() => showToast("Couldn't play the voice note."));
+          playBtn.innerHTML = pauseIcon;
+          node.classList.add('playing');
+          rafId = requestAnimationFrame(tickProgress);
+        } else {
+          audioEl.pause();
+          playBtn.innerHTML = playIcon;
+          stopProgressLoop();
+        }
       });
+      node.addEventListener('voiceclip-pause-others', () => {
+        if (audioEl && !audioEl.paused) { audioEl.pause(); playBtn.innerHTML = playIcon; stopProgressLoop(); }
+      });
+      if (audioEl) {
+        audioEl.addEventListener('ended', () => {
+          playBtn.innerHTML = playIcon;
+          bars.forEach(b => b.classList.remove('wave-played'));
+          stopProgressLoop();
+        });
+        audioEl.addEventListener('loadedmetadata', () => {
+          if (isFinite(audioEl.duration) && !clip.duration) {
+            clip.duration = audioEl.duration;
+            durationEl.textContent = formatClipDuration(audioEl.duration);
+            persist();
+          }
+        });
+      }
 
       wireVoiceClipDragResize(node, page, clip, container, handle);
       container.appendChild(node);
     });
     syncContainerPointerEvents(container);
+  }
+
+  function formatClipDuration(seconds) {
+    const s = Math.max(0, Math.round(seconds));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return m + ':' + String(r).padStart(2, '0');
   }
 
   function wireVoiceClipDragResize(node, page, clipData, container, handle) {
@@ -1247,7 +1457,7 @@
       e.stopPropagation();
       resizing = true;
       startX = e.clientX;
-      startWidth = clipData.width || 150;
+      startWidth = clipData.width || 160;
       handle.setPointerCapture && handle.setPointerCapture(e.pointerId);
     });
 
@@ -1262,7 +1472,7 @@
         node.style.left = clipData.x + '%';
         node.style.top = clipData.y + '%';
       } else if (resizing) {
-        clipData.width = Math.max(110, Math.min(320, startWidth + (e.clientX - startX)));
+        clipData.width = Math.max(120, Math.min(340, startWidth + (e.clientX - startX)));
         node.style.width = clipData.width + 'px';
       }
     }
@@ -1279,15 +1489,7 @@
     handle.addEventListener('pointerup', onUp);
   }
 
-  function addVoiceClipToCurrentPage(target) {
-    const diary = currentDiary();
-    if (!diary) return;
-    const idx = (target === 'fs') ? editingIndex : getFocusedPageIndex();
-    const page = diary.pages[idx];
-    if (!page) { showToast('Add a page first.'); return; }
-    if (!Array.isArray(page.voiceClips)) page.voiceClips = [];
-    page.voiceClips.push({ id: uid(), x: 10, y: 6, width: 150 });
-    persist();
+  function rerenderVoiceClips(target, page, idx) {
     if (target === 'fs') {
       renderVoiceClipsForSheet(el.fsStickerLayer, page, idx, { fullscreen: true });
     } else {
@@ -1295,22 +1497,172 @@
       const layerEl = sheetEl.querySelector('[data-field="stickerLayer"]');
       renderVoiceClipsForSheet(layerEl, page, idx, {});
     }
-    showToast('Voice note added — drag to place it');
   }
 
-  // press-and-hold (works for touch and mouse) without blocking the regular click handler
-  function wireLongPress(node, onLongPress, ms) {
+  // ---- real audio recording (MediaRecorder) — press & hold the mic to record, like WhatsApp ----
+
+  let mediaRecorder = null, recordedChunks = [], recordStream = null;
+  let recordStartTime = 0, recordTimerInterval = null, recordTargetInfo = null;
+  let audioCtxForAnalysis = null;
+
+  function startVoiceNoteRecording(target) {
+    if (mediaRecorder && mediaRecorder.state === 'recording') return;
+    const diary = currentDiary();
+    if (!diary) return;
+    const idx = (target === 'fs') ? editingIndex : getFocusedPageIndex();
+    const page = diary.pages[idx];
+    if (!page) { showToast('Add a page first.'); return; }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast('Voice recording is not supported in this browser.');
+      return;
+    }
+
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+      recordStream = stream;
+      recordedChunks = [];
+      recordTargetInfo = { target, idx, page };
+      const mimeType = ['audio/webm', 'audio/mp4', 'audio/ogg'].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t));
+      mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = handleRecordingStop;
+      mediaRecorder.start();
+      recordStartTime = Date.now();
+      showRecordingIndicator(true);
+      recordTimerInterval = setInterval(updateRecordingTime, 200);
+      if (settings.hapticsOn !== false && navigator.vibrate) navigator.vibrate(15);
+    }).catch(err => {
+      console.error(err);
+      showToast(err && err.name === 'NotAllowedError' ? "Couldn't access the mic." : "Couldn't start recording.");
+    });
+  }
+
+  function stopVoiceNoteRecording(cancel) {
+    if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+    if (cancel) recordedChunks = [];
+    mediaRecorder._cancelled = !!cancel;
+    mediaRecorder.stop();
+    clearInterval(recordTimerInterval);
+    showRecordingIndicator(false);
+    if (recordStream) recordStream.getTracks().forEach(t => t.stop());
+  }
+
+  function updateRecordingTime() {
+    const elapsed = (Date.now() - recordStartTime) / 1000;
+    el.recordingTime.textContent = formatClipDuration(elapsed);
+    if (elapsed >= 120) stopVoiceNoteRecording(false); // 2 min safety cap
+  }
+
+  function showRecordingIndicator(show) {
+    if (!el.recordingIndicator) return;
+    if (show) {
+      el.recordingIndicator.hidden = false;
+      el.recordingTime.textContent = '0:00';
+      requestAnimationFrame(() => el.recordingIndicator.classList.add('show'));
+    } else {
+      el.recordingIndicator.classList.remove('show');
+      setTimeout(() => { el.recordingIndicator.hidden = true; }, 250);
+    }
+    el.pageMicFab.classList.toggle('recording', show);
+    el.fsMicFab.classList.toggle('recording', show);
+    if (el.fsVoiceNoteBtn) el.fsVoiceNoteBtn.classList.toggle('recording', show);
+  }
+
+  function handleRecordingStop() {
+    const wasCancelled = mediaRecorder && mediaRecorder._cancelled;
+    const info = recordTargetInfo;
+    const durationSec = (Date.now() - recordStartTime) / 1000;
+    mediaRecorder = null;
+    recordTargetInfo = null;
+
+    if (wasCancelled || !info || durationSec < 0.4 || !recordedChunks.length) {
+      recordedChunks = [];
+      if (!wasCancelled && durationSec < 0.4) showToast('Recording too short.');
+      return;
+    }
+
+    const blob = new Blob(recordedChunks, { type: recordedChunks[0].type || 'audio/webm' });
+    recordedChunks = [];
+
+    blobToDataUrl(blob).then(dataUrl => {
+      analyzeWaveform(blob).then(waveform => {
+        const diary = currentDiary();
+        if (!diary) return;
+        const page = diary.pages[info.idx];
+        if (!page) return;
+        if (!Array.isArray(page.voiceClips)) page.voiceClips = [];
+        page.voiceClips.push({
+          id: uid(), x: 8 + Math.random() * 10, y: 6 + Math.random() * 8, width: 170,
+          dataUrl, duration: durationSec, waveform,
+        });
+        persist();
+        rerenderVoiceClips(info.target, page, info.idx);
+        showToast('Voice note added — drag to place it');
+      });
+    }).catch(() => showToast("Couldn't save the recording."));
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // decode the recorded audio into a compact amplitude array so the bubble shows a real waveform
+  function analyzeWaveform(blob) {
+    return new Promise((resolve) => {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) { resolve(null); return; }
+      blob.arrayBuffer().then(buf => {
+        if (!audioCtxForAnalysis) audioCtxForAnalysis = new AudioCtx();
+        audioCtxForAnalysis.decodeAudioData(buf.slice(0), (audioBuffer) => {
+          const raw = audioBuffer.getChannelData(0);
+          const blockSize = Math.max(1, Math.floor(raw.length / WAVE_BAR_COUNT));
+          const amps = [];
+          for (let i = 0; i < WAVE_BAR_COUNT; i++) {
+            let sum = 0;
+            const start = i * blockSize;
+            for (let j = 0; j < blockSize && (start + j) < raw.length; j++) sum += Math.abs(raw[start + j]);
+            amps.push(sum / blockSize);
+          }
+          const max = Math.max(...amps, 0.01);
+          resolve(amps.map(a => Math.max(0.15, Math.min(1, a / max))));
+        }, () => resolve(null));
+      }).catch(() => resolve(null));
+    });
+  }
+
+  // press-and-hold the mic to record real audio (like WhatsApp); a quick tap still does
+  // speech-to-text via wireHoldToRecord's companion toggleRecording click handler.
+  function wireHoldToRecord(node, target) {
     if (!node) return;
-    ms = ms || 550;
-    let timer = null, fired = false;
-    const start = () => { fired = false; timer = setTimeout(() => { fired = true; onLongPress(); }, ms); };
-    const cancel = () => clearTimeout(timer);
+    const HOLD_MS = 450;
+    let timer = null, holding = false;
+    const start = (e) => {
+      holding = false;
+      timer = setTimeout(() => {
+        holding = true;
+        startVoiceNoteRecording(target);
+      }, HOLD_MS);
+    };
+    const cancelTimer = () => clearTimeout(timer);
+    const release = () => {
+      cancelTimer();
+      if (holding) { stopVoiceNoteRecording(false); holding = false; }
+    };
+    const abort = () => {
+      cancelTimer();
+      if (holding) { stopVoiceNoteRecording(true); holding = false; }
+    };
     node.addEventListener('pointerdown', start);
-    node.addEventListener('pointerup', cancel);
-    node.addEventListener('pointerleave', cancel);
-    node.addEventListener('pointercancel', cancel);
-    // suppress the click that follows a long-press so it doesn't also trigger the short-press action
-    node.addEventListener('click', (e) => { if (fired) { e.stopPropagation(); e.preventDefault(); } }, true);
+    node.addEventListener('pointerup', release);
+    node.addEventListener('pointerleave', abort);
+    node.addEventListener('pointercancel', abort);
+    // suppress the click (which would otherwise also toggle speech-to-text) after a hold-record
+    node.addEventListener('click', (e) => { if (holding) { e.stopPropagation(); e.preventDefault(); } }, true);
   }
 
   // ============ MOOD PICKER ============
@@ -2255,6 +2607,22 @@
       if (id) deleteFromCover(id);
     });
 
+    el.coverThemeBtn.addEventListener('click', openCoverThemeSheet);
+    el.coverThemeSheetBackdrop.addEventListener('click', closeCoverThemeSheet);
+    el.coverThemeOptions.querySelectorAll('.cover-theme-swatch').forEach(btn => {
+      btn.addEventListener('click', () => selectCoverTheme(btn.dataset.coverTheme));
+    });
+    el.coverStickerBtn.addEventListener('click', openCoverStickerSheet);
+    el.coverStickerSheetBackdrop.addEventListener('click', closeCoverStickerSheet);
+    el.coverStickerOptions.querySelectorAll('.sticker-option').forEach(btn => {
+      btn.addEventListener('click', () => addStickerToCover(btn.dataset.sticker));
+    });
+    el.coverStickerClearBtn.addEventListener('click', clearCoverStickers);
+    el.coverStickerLayer.addEventListener('click', (e) => {
+      if (e.target.closest('.placed-sticker')) return;
+      deselectAllStickers(el.coverStickerLayer);
+    });
+
     el.bookBackBtn.addEventListener('click', () => openCoverScreen(activeDiaryId));
     el.zonePrev.addEventListener('click', () => goToPair('prev'));
     el.zoneNext.addEventListener('click', () => goToPair('next'));
@@ -2292,8 +2660,12 @@
     el.fsHeadline.addEventListener('input', () => scheduleAutosave(saveFsEdits));
     el.fsBody.addEventListener('input', () => scheduleAutosave(saveFsEdits));
     el.fsMicFab.addEventListener('click', () => toggleRecording('fs'));
-    wireLongPress(el.fsMicFab, () => addVoiceClipToCurrentPage('fs'));
-    wireLongPress(el.pageMicFab, () => addVoiceClipToCurrentPage('page'));
+    wireHoldToRecord(el.fsMicFab, 'fs');
+    wireHoldToRecord(el.pageMicFab, 'page');
+    el.fsVoiceNoteBtn.addEventListener('click', () => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') stopVoiceNoteRecording(false);
+      else startVoiceNoteRecording('fs');
+    });
     el.printBtn.addEventListener('click', printCurrentPage);
     el.fsScrim.addEventListener('click', closeFullscreen);
     el.fsDate.addEventListener('dblclick', toggleFullscreenExpand);
