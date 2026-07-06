@@ -22,15 +22,31 @@
     homeScreen: $('homeScreen'), weekStrip: $('weekStrip'), todayFull: $('todayFull'),
     createNewBtn: $('createNewBtn'), homeHint: $('homeHint'), historyBtn: $('historyBtn'),
     settingsBtn: $('settingsBtn'),
-    homeDiaryPreview: $('homeDiaryPreview'), miniBookMeta: $('miniBookMeta'),
     recentReflectionsLabel: $('recentReflectionsLabel'),
-    reflectionLeftText: $('reflectionLeftText'), reflectionRightText: $('reflectionRightText'),
-    reflectionLeftLabel: $('reflectionLeftLabel'), reflectionLeftMood: $('reflectionLeftMood'),
-    reflectionRightMood: $('reflectionRightMood'),
+    diaryGrid: $('diaryGrid'),
 
     quickSearchTopBtn: $('quickSearchTopBtn'), notifBtn: $('notifBtn'), profileBtn: $('profileBtn'),
-    voiceprintBtn: $('voiceprintBtn'),
     notifSheetBackdrop: $('notifSheetBackdrop'), notifSheet: $('notifSheet'), notifList: $('notifList'),
+
+    createLockTypeOptions: $('createLockTypeOptions'), createLockFields: $('createLockFields'),
+    createLockSecretInput: $('createLockSecretInput'), createLockQuestionSelect: $('createLockQuestionSelect'),
+    createLockAnswerInput: $('createLockAnswerInput'),
+
+    diaryLockScreen: $('diaryLockScreen'), diaryLockTitle: $('diaryLockTitle'), diaryLockSub: $('diaryLockSub'),
+    diaryLockDots: $('diaryLockDots'), diaryLockPatternInput: $('diaryLockPatternInput'),
+    diaryLockError: $('diaryLockError'), diaryLockKeypad: $('diaryLockKeypad'),
+    diaryLockForgotBtn: $('diaryLockForgotBtn'), diaryLockCancelBtn: $('diaryLockCancelBtn'),
+
+    forgotLockSheetBackdrop: $('forgotLockSheetBackdrop'), forgotLockSheet: $('forgotLockSheet'),
+    forgotLockQuestionText: $('forgotLockQuestionText'), forgotLockAnswerInput: $('forgotLockAnswerInput'),
+    forgotLockSubmitBtn: $('forgotLockSubmitBtn'), forgotLockError: $('forgotLockError'),
+
+    diaryLockManageList: $('diaryLockManageList'),
+    diaryLockManageSheetBackdrop: $('diaryLockManageSheetBackdrop'), diaryLockManageSheet: $('diaryLockManageSheet'),
+    diaryLockManageTitle: $('diaryLockManageTitle'), manageLockTypeOptions: $('manageLockTypeOptions'),
+    manageLockFields: $('manageLockFields'), manageLockSecretInput: $('manageLockSecretInput'),
+    manageLockQuestionSelect: $('manageLockQuestionSelect'), manageLockAnswerInput: $('manageLockAnswerInput'),
+    manageLockSaveBtn: $('manageLockSaveBtn'),
 
     bottomNav: $('bottomNav'), bnavHomeBtn: $('bnavHomeBtn'), bnavHistoryBtn: $('bnavHistoryBtn'),
     bnavInsightsBtn: $('bnavInsightsBtn'), bnavInsightsLabel: $('bnavInsightsLabel'),
@@ -65,12 +81,11 @@
     memoryCard: $('memoryCard'), memoryHeadline: $('memoryHeadline'), memorySnippet: $('memorySnippet'), memoryDate: $('memoryDate'),
     quoteText: $('quoteText'), quoteCard: $('quoteCard'),
     statPages: $('statPages'), statWords: $('statWords'), statStreak: $('statStreak'),
-    diaryDots: $('diaryDots'),
     quickVoiceBtn: $('quickVoiceBtn'), quickMoodBtn: $('quickMoodBtn'), quickSearchBtn: $('quickSearchBtn'),
     weatherWidget: $('weatherWidget'), seasonIcon: $('seasonIcon'), weatherText: $('weatherText'),
     chartCard: $('chartCard'), miniChart: $('miniChart'), moodSummary: $('moodSummary'),
     heatmapCard: $('heatmapCard'), heatmapGrid: $('heatmapGrid'),
-    badgesStrip: $('badgesStrip'), emptyState: $('emptyState'), confettiLayer: $('confettiLayer'),
+    badgesStrip: $('badgesStrip'), confettiLayer: $('confettiLayer'),
 
     createScreen: $('createScreen'), createBackBtn: $('createBackBtn'),
     diaryNameInput: $('diaryNameInput'), headlineInput: $('headlineInput'), firstEntryInput: $('firstEntryInput'),
@@ -215,6 +230,7 @@
       if (!d.coverTheme) d.coverTheme = 'classic';
       if (!Array.isArray(d.coverStickers)) d.coverStickers = [];
       if (!d.signature) d.signature = 'made by Yash';
+      if (d.lock === undefined) d.lock = null; // { type: 'pin'|'pattern', secret, question, answer }
       (d.coverStickers || []).forEach(st => {
         if (st.sizePct === undefined) st.sizePct = st.size ? (st.size / 260 * 100) : 22;
       });
@@ -315,18 +331,16 @@
     loadDiaries();
     renderWeekStrip();
     el.todayFull.textContent = formatDateLong(new Date());
-    renderHomePreview();
+    renderDiaryGrid();
     applyProfileEverywhere();
     renderStreak();
     renderMemory();
     renderQuote();
     renderStats();
-    renderDiaryDots();
     renderWeatherWidget();
     renderWeeklyChart();
     renderMoodSummary();
     renderBadges();
-    renderEmptyState();
     showScreen('home');
     if (settings.reminderOn && 'Notification' in window && Notification.permission === 'granted') {
       scheduleReminder();
@@ -405,9 +419,7 @@
   }
 
   // ---------- empty state ----------
-  function renderEmptyState() {
-    el.emptyState.hidden = diaries.length > 0;
-  }
+  // (handled inline inside renderDiaryGrid now — the empty-diary card)
 
   // ---------- confetti ----------
   function fireConfetti() {
@@ -561,39 +573,36 @@
     el.statStreak.textContent = computeLongestStreak(dateSet);
   }
 
-  // ---------- diary carousel dots ----------
-  function renderDiaryDots() {
-    if (diaries.length <= 1) { el.diaryDots.hidden = true; return; }
-    el.diaryDots.hidden = false;
-    el.diaryDots.innerHTML = diaries.map((_, i) => `<span class="${i === 0 ? 'active' : ''}"></span>`).join('');
-  }
+  // ---------- diary grid (Recent Diary) ----------
+  function renderDiaryGrid() {
+    if (!el.diaryGrid) return;
+    el.homeHint.textContent = diaries.length === 0 ? 'No diary yet' : diaries.length === 1 ? 'You have 1 diary' : `You have ${diaries.length} diaries`;
 
-  function renderHomePreview() {
-    const latest = diaries[0];
-    if (!latest || !latest.pages.length) {
-      el.homeDiaryPreview.hidden = true;
-      el.recentReflectionsLabel.hidden = true;
-      el.homeHint.textContent = latest ? 'You have 1 diary' : 'No diary yet';
+    el.diaryGrid.className = 'diary-grid' + (diaries.length === 2 ? ' count-2' : diaries.length >= 3 ? ' count-3plus' : '');
+
+    if (!diaries.length) {
+      el.diaryGrid.innerHTML = `
+        <div class="diary-grid-empty-card" id="diaryGridEmptyCard">
+          <span class="empty-illustration">📖✨</span>
+          <p>Your story starts with one page.<br>Tap to create your first diary.</p>
+        </div>`;
+      const emptyCard = $('diaryGridEmptyCard');
+      if (emptyCard) emptyCard.addEventListener('click', openCreateScreen);
       return;
     }
-    el.homeDiaryPreview.hidden = false;
-    el.recentReflectionsLabel.hidden = false;
 
-    const pages = latest.pages;
-    const rightPage = pages[pages.length - 1];
-    const leftPage = pages.length > 1 ? pages[pages.length - 2] : rightPage;
+    el.diaryGrid.innerHTML = diaries.map(d => `
+      <div class="diary-grid-card" data-id="${d.id}">
+        ${d.lock ? '<span class="diary-grid-card-lock">🔒</span>' : ''}
+        <span class="diary-grid-card-mark">◐</span>
+        <span class="diary-grid-card-title">${escapeHtml(d.name)}</span>
+        <span class="diary-grid-card-meta">${d.pages.length} ${d.pages.length === 1 ? 'page' : 'pages'}</span>
+      </div>
+    `).join('');
 
-    const leftText = (leftPage.text || leftPage.headline || 'Tap the mic to add your first line.').slice(0, 90);
-    const rightText = (rightPage.text || rightPage.headline || 'Tap the mic to add your first line.').slice(0, 90);
-
-    el.reflectionLeftText.textContent = leftText + (leftText.length >= 90 ? '…' : '');
-    el.reflectionRightText.textContent = rightText + (rightText.length >= 90 ? '…' : '');
-    el.reflectionLeftLabel.textContent = leftPage === rightPage ? 'Latest entry' : 'Voice entry';
-    el.reflectionLeftMood.textContent = leftPage.mood || '😐';
-    el.reflectionRightMood.textContent = rightPage.mood || '🙂';
-
-    el.miniBookMeta.textContent = `${pages.length} ${pages.length === 1 ? 'segment' : 'segments'} · tap to open`;
-    el.homeHint.textContent = diaries.length === 1 ? 'You have 1 diary' : `You have ${diaries.length} diaries`;
+    el.diaryGrid.querySelectorAll('.diary-grid-card').forEach(card => {
+      card.addEventListener('click', () => openDiaryRespectingLock(card.dataset.id));
+    });
   }
 
   function renderWeekStrip() {
@@ -703,11 +712,31 @@
     }
   }
 
+  let createLockType = 'none';
+
+  function selectCreateLockType(type) {
+    createLockType = type;
+    if (el.createLockTypeOptions) {
+      el.createLockTypeOptions.querySelectorAll('.lock-type-chip').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.locktype === type);
+      });
+    }
+    if (el.createLockFields) el.createLockFields.hidden = type === 'none';
+    if (el.createLockSecretInput) {
+      el.createLockSecretInput.placeholder = type === 'pattern' ? 'Enter a pattern (e.g. 2-1-4-7)' : '4-digit PIN';
+      el.createLockSecretInput.maxLength = type === 'pattern' ? 20 : 4;
+      el.createLockSecretInput.inputMode = type === 'pattern' ? 'text' : 'numeric';
+    }
+  }
+
   function openCreateScreen() {
     el.diaryNameInput.value = '';
     el.headlineInput.value = '';
     el.firstEntryInput.value = '';
+    if (el.createLockSecretInput) el.createLockSecretInput.value = '';
+    if (el.createLockAnswerInput) el.createLockAnswerInput.value = '';
     selectTemplate('plain');
+    selectCreateLockType('none');
     showScreen('create');
     setTimeout(() => el.diaryNameInput.focus(), 300);
   }
@@ -720,6 +749,16 @@
     if (!name) { showToast('Enter a diary name'); el.diaryNameInput.focus(); return; }
     if (!headline) { showToast("Enter today's headline"); el.headlineInput.focus(); return; }
 
+    let lock = null;
+    if (createLockType !== 'none') {
+      const secret = (el.createLockSecretInput.value || '').trim();
+      const answer = (el.createLockAnswerInput.value || '').trim();
+      if (createLockType === 'pin' && !/^\d{4}$/.test(secret)) { showToast('Enter exactly 4 digits for PIN'); el.createLockSecretInput.focus(); return; }
+      if (createLockType === 'pattern' && secret.length < 2) { showToast('Enter a pattern'); el.createLockSecretInput.focus(); return; }
+      if (!answer) { showToast('Enter an answer for your security question'); el.createLockAnswerInput.focus(); return; }
+      lock = { type: createLockType, secret, question: el.createLockQuestionSelect.value, answer: answer.toLowerCase() };
+    }
+
     const tpl = DIARY_TEMPLATES[selectedTemplate] || DIARY_TEMPLATES.plain;
     const diary = {
       id: uid(),
@@ -729,6 +768,7 @@
       coverTheme: tpl.coverTheme,
       coverStickers: [],
       template: selectedTemplate,
+      lock,
       pages: [{ id: uid(), headline, date: new Date().toISOString(), text: text || '', stickers: [], voiceClips: [], photos: [], tags: [], bookmarked: false }],
     };
     diaries.unshift(diary);
@@ -2323,7 +2363,7 @@
       <div class="diary-card" data-id="${d.id}">
         <div class="diary-card-mark">◐</div>
         <div class="diary-card-body">
-          <div class="diary-card-title">${escapeHtml(d.name)}</div>
+          <div class="diary-card-title">${escapeHtml(d.name)}${d.lock ? ' 🔒' : ''}</div>
           <div class="diary-card-meta">${d.pages.length} pages · created ${formatDateShort(new Date(d.createdAt))}</div>
         </div>
       </div>
@@ -2336,7 +2376,7 @@
 
       card.addEventListener('click', () => {
         if (pendingDeleteId) return; // ignore click if a delete confirm is pending
-        openCoverScreen(id);
+        openDiaryRespectingLock(id);
       });
 
       const startPress = () => {
@@ -2376,7 +2416,7 @@
       diaries.splice(idx, 0, removed);
       persist();
       renderDiaryList();
-      renderHomePreview();
+      renderDiaryGrid();
     });
   }
 
@@ -2389,7 +2429,7 @@
     offerUndo('Diary deleted', () => {
       diaries.splice(idx, 0, removed);
       persist();
-      renderHomePreview();
+      renderDiaryGrid();
       renderWeekStrip();
     });
   }
@@ -2718,6 +2758,8 @@
     if (el.hapticsToggle) el.hapticsToggle.checked = !!settings.hapticsOn;
     if (el.soundToggle) el.soundToggle.checked = !!settings.soundOn;
 
+    renderDiaryLockManageList();
+
     showScreen('settings');
   }
 
@@ -2821,6 +2863,234 @@
         }
       }, 150);
     }
+  }
+
+  // ============ PER-DIARY LOCK ============
+
+  const SECURITY_QUESTIONS = {
+    sport: 'What is your favourite sport?',
+    dob: 'What is your date of birth?',
+    pet: "What is your pet's name?",
+    city: 'Which city were you born in?',
+  };
+
+  let diaryLockTargetId = null;   // diary awaiting unlock
+  let diaryLockEntered = '';      // pin digits entered so far (pin mode)
+
+  // any diary's correct secret (pin/pattern) or correct security answer unlocks the
+  // specific diary being opened — this is intentional (universal override), per user request
+  function checkAnyDiaryUnlockMatch(input, { asAnswer } = {}) {
+    const norm = (input || '').trim().toLowerCase();
+    return diaries.some(d => {
+      if (!d.lock) return false;
+      if (asAnswer) return (d.lock.answer || '').toLowerCase() === norm;
+      return (d.lock.secret || '').toLowerCase() === norm;
+    });
+  }
+
+  function openDiaryRespectingLock(diaryId) {
+    const diary = getDiary(diaryId);
+    if (!diary) return;
+    if (!diary.lock) {
+      openCoverScreen(diaryId);
+      return;
+    }
+    showDiaryLockScreen(diaryId);
+  }
+
+  function showDiaryLockScreen(diaryId) {
+    const diary = getDiary(diaryId);
+    if (!diary) return;
+    diaryLockTargetId = diaryId;
+    diaryLockEntered = '';
+    el.diaryLockError.hidden = true;
+    el.diaryLockSub.textContent = `"${diary.name}" is locked`;
+
+    const isPattern = diary.lock.type === 'pattern';
+    el.diaryLockTitle.textContent = isPattern ? 'Enter pattern' : 'Enter PIN';
+    el.diaryLockKeypad.hidden = isPattern;
+    el.diaryLockDots.hidden = isPattern;
+    el.diaryLockPatternInput.hidden = !isPattern;
+    if (isPattern) {
+      el.diaryLockPatternInput.value = '';
+      setTimeout(() => el.diaryLockPatternInput.focus(), 200);
+    } else {
+      renderDiaryLockDots();
+    }
+    el.diaryLockScreen.hidden = false;
+  }
+
+  function hideDiaryLockScreen() {
+    el.diaryLockScreen.hidden = true;
+    diaryLockTargetId = null;
+    diaryLockEntered = '';
+  }
+
+  function renderDiaryLockDots() {
+    const dots = el.diaryLockDots.querySelectorAll('.lock-dot');
+    dots.forEach((d, i) => d.classList.toggle('filled', i < diaryLockEntered.length));
+  }
+
+  function tryUnlockDiary(inputSecret) {
+    const diary = getDiary(diaryLockTargetId);
+    if (!diary) return;
+    // exact match against this diary's own lock OR any diary's lock secret (universal override)
+    if (inputSecret === diary.lock.secret || checkAnyDiaryUnlockMatch(inputSecret)) {
+      const id = diaryLockTargetId;
+      hideDiaryLockScreen();
+      openCoverScreen(id);
+    } else {
+      el.diaryLockError.hidden = false;
+      if (settings.hapticsOn && navigator.vibrate) navigator.vibrate([40, 40, 40]);
+      if (el.diaryLockKeypad.hidden) {
+        el.diaryLockPatternInput.classList.add('shake-error');
+        setTimeout(() => el.diaryLockPatternInput.classList.remove('shake-error'), 400);
+      } else {
+        el.diaryLockDots.querySelectorAll('.lock-dot').forEach(d => d.classList.add('shake-error'));
+        setTimeout(() => {
+          diaryLockEntered = '';
+          renderDiaryLockDots();
+          el.diaryLockDots.querySelectorAll('.lock-dot').forEach(d => d.classList.remove('shake-error'));
+        }, 450);
+      }
+    }
+  }
+
+  function handleDiaryLockKey(key) {
+    if (key === 'back') {
+      diaryLockEntered = diaryLockEntered.slice(0, -1);
+      renderDiaryLockDots();
+      return;
+    }
+    if (diaryLockEntered.length >= 4) return;
+    diaryLockEntered += key;
+    renderDiaryLockDots();
+    if (diaryLockEntered.length === 4) {
+      setTimeout(() => tryUnlockDiary(diaryLockEntered), 150);
+    }
+  }
+
+  function openForgotLockSheet() {
+    const diary = getDiary(diaryLockTargetId);
+    if (!diary) return;
+    el.forgotLockQuestionText.textContent = SECURITY_QUESTIONS[diary.lock.question] || 'Answer your security question';
+    el.forgotLockAnswerInput.value = '';
+    el.forgotLockError.hidden = true;
+    el.forgotLockSheetBackdrop.hidden = false;
+    el.forgotLockSheet.hidden = false;
+    requestAnimationFrame(() => {
+      el.forgotLockSheetBackdrop.classList.add('show');
+      el.forgotLockSheet.classList.add('show');
+      el.forgotLockAnswerInput.focus();
+    });
+  }
+
+  function closeForgotLockSheet() {
+    el.forgotLockSheetBackdrop.classList.remove('show');
+    el.forgotLockSheet.classList.remove('show');
+    setTimeout(() => { el.forgotLockSheetBackdrop.hidden = true; el.forgotLockSheet.hidden = true; }, 350);
+  }
+
+  function submitForgotLockAnswer() {
+    const diary = getDiary(diaryLockTargetId);
+    if (!diary) return;
+    const answer = (el.forgotLockAnswerInput.value || '').trim();
+    // correct answer against this diary's own question OR any diary's answer (universal override)
+    if (answer.toLowerCase() === (diary.lock.answer || '').toLowerCase() || checkAnyDiaryUnlockMatch(answer, { asAnswer: true })) {
+      const id = diaryLockTargetId;
+      closeForgotLockSheet();
+      hideDiaryLockScreen();
+      showToast('Diary unlocked');
+      openCoverScreen(id);
+    } else {
+      el.forgotLockError.hidden = false;
+    }
+  }
+
+  // ---- manage locks from Settings ----
+
+  function renderDiaryLockManageList() {
+    if (!el.diaryLockManageList) return;
+    if (!diaries.length) {
+      el.diaryLockManageList.innerHTML = '<p class="empty-note">No diaries yet.</p>';
+      return;
+    }
+    el.diaryLockManageList.innerHTML = diaries.map(d => `
+      <div class="diary-lock-manage-row" data-id="${d.id}">
+        <div>
+          <div class="diary-lock-manage-name">${escapeHtml(d.name)}</div>
+          <div class="diary-lock-manage-status">${d.lock ? (d.lock.type === 'pattern' ? '🔒 Pattern lock' : '🔒 PIN lock') : 'No lock'}</div>
+        </div>
+        <button class="diary-lock-manage-btn" data-id="${d.id}">${d.lock ? 'Change' : 'Add lock'}</button>
+      </div>
+    `).join('');
+    el.diaryLockManageList.querySelectorAll('.diary-lock-manage-btn').forEach(btn => {
+      btn.addEventListener('click', () => openDiaryLockManageSheet(btn.dataset.id));
+    });
+  }
+
+  let manageLockTargetId = null;
+  let manageLockType = 'pin';
+
+  function selectManageLockType(type) {
+    manageLockType = type;
+    el.manageLockTypeOptions.querySelectorAll('.lock-type-chip').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.locktype === type);
+    });
+    el.manageLockFields.hidden = type === 'none';
+    el.manageLockSecretInput.placeholder = type === 'pattern' ? 'Enter a pattern (e.g. 2-1-4-7)' : '4-digit PIN';
+    el.manageLockSecretInput.maxLength = type === 'pattern' ? 20 : 4;
+  }
+
+  function openDiaryLockManageSheet(diaryId) {
+    const diary = getDiary(diaryId);
+    if (!diary) return;
+    manageLockTargetId = diaryId;
+    el.diaryLockManageTitle.textContent = `Lock "${diary.name}"`;
+    selectManageLockType(diary.lock ? diary.lock.type : 'pin');
+    el.manageLockSecretInput.value = diary.lock ? diary.lock.secret : '';
+    el.manageLockQuestionSelect.value = diary.lock ? diary.lock.question : 'sport';
+    el.manageLockAnswerInput.value = diary.lock ? diary.lock.answer : '';
+    el.diaryLockManageSheetBackdrop.hidden = false;
+    el.diaryLockManageSheet.hidden = false;
+    requestAnimationFrame(() => {
+      el.diaryLockManageSheetBackdrop.classList.add('show');
+      el.diaryLockManageSheet.classList.add('show');
+    });
+  }
+
+  function closeDiaryLockManageSheet() {
+    el.diaryLockManageSheetBackdrop.classList.remove('show');
+    el.diaryLockManageSheet.classList.remove('show');
+    setTimeout(() => { el.diaryLockManageSheetBackdrop.hidden = true; el.diaryLockManageSheet.hidden = true; }, 350);
+  }
+
+  function saveManageLock() {
+    const diary = getDiary(manageLockTargetId);
+    if (!diary) return;
+
+    if (manageLockType === 'none') {
+      diary.lock = null;
+      persist();
+      renderDiaryLockManageList();
+      renderDiaryGrid();
+      closeDiaryLockManageSheet();
+      showToast('Lock removed');
+      return;
+    }
+
+    const secret = (el.manageLockSecretInput.value || '').trim();
+    const answer = (el.manageLockAnswerInput.value || '').trim();
+    if (manageLockType === 'pin' && !/^\d{4}$/.test(secret)) { showToast('Enter exactly 4 digits for PIN'); return; }
+    if (manageLockType === 'pattern' && secret.length < 2) { showToast('Enter a pattern'); return; }
+    if (!answer) { showToast('Enter an answer for your security question'); return; }
+
+    diary.lock = { type: manageLockType, secret, question: el.manageLockQuestionSelect.value, answer: answer.toLowerCase() };
+    persist();
+    renderDiaryLockManageList();
+    renderDiaryGrid();
+    closeDiaryLockManageSheet();
+    showToast('Lock saved');
   }
 
   // ============ FULL JSON BACKUP / RESTORE ============
@@ -2981,7 +3251,6 @@
     el.notifBtn.addEventListener('click', openNotifSheet);
     el.notifSheetBackdrop.addEventListener('click', closeNotifSheet);
     el.profileBtn.addEventListener('click', openProfileScreen);
-    el.voiceprintBtn.addEventListener('click', openProfileScreen);
 
     // profile screen
     el.profileBackBtn.addEventListener('click', initHome);
@@ -3006,10 +3275,6 @@
 
     // settings profile card
     el.settingsProfileCard.addEventListener('click', openEditProfileSheet);
-    el.homeDiaryPreview.addEventListener('click', () => {
-      const latest = diaries[0];
-      if (latest) openCoverScreen(latest.id);
-    });
 
     // quick actions
     el.quickVoiceBtn.addEventListener('click', () => {
@@ -3257,6 +3522,44 @@
         if (btn) handleLockKey(btn.dataset.key);
       });
     }
+
+    // ---- create-screen lock type chips ----
+    if (el.createLockTypeOptions) {
+      el.createLockTypeOptions.addEventListener('click', (e) => {
+        const btn = e.target.closest('.lock-type-chip');
+        if (btn) selectCreateLockType(btn.dataset.locktype);
+      });
+    }
+
+    // ---- per-diary lock screen (shown when opening a locked diary) ----
+    if (el.diaryLockKeypad) {
+      el.diaryLockKeypad.addEventListener('click', (e) => {
+        const btn = e.target.closest('.lock-key');
+        if (btn) handleDiaryLockKey(btn.dataset.key);
+      });
+    }
+    if (el.diaryLockPatternInput) {
+      el.diaryLockPatternInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') tryUnlockDiary(el.diaryLockPatternInput.value.trim());
+      });
+    }
+    if (el.diaryLockCancelBtn) el.diaryLockCancelBtn.addEventListener('click', hideDiaryLockScreen);
+    if (el.diaryLockForgotBtn) el.diaryLockForgotBtn.addEventListener('click', openForgotLockSheet);
+    if (el.forgotLockSheetBackdrop) el.forgotLockSheetBackdrop.addEventListener('click', closeForgotLockSheet);
+    if (el.forgotLockSubmitBtn) el.forgotLockSubmitBtn.addEventListener('click', submitForgotLockAnswer);
+    if (el.forgotLockAnswerInput) {
+      el.forgotLockAnswerInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitForgotLockAnswer(); });
+    }
+
+    // ---- manage diary locks (from Settings) ----
+    if (el.manageLockTypeOptions) {
+      el.manageLockTypeOptions.addEventListener('click', (e) => {
+        const btn = e.target.closest('.lock-type-chip');
+        if (btn) selectManageLockType(btn.dataset.locktype);
+      });
+    }
+    if (el.diaryLockManageSheetBackdrop) el.diaryLockManageSheetBackdrop.addEventListener('click', closeDiaryLockManageSheet);
+    if (el.manageLockSaveBtn) el.manageLockSaveBtn.addEventListener('click', saveManageLock);
 
     // keyboard nav for page flip (desktop testing convenience)
     document.addEventListener('keydown', (e) => {
