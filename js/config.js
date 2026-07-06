@@ -10,6 +10,11 @@
      'en-IN' — English (India)
      'en-US' — English (US)
      'hi-IN' — Hindi (India)
+
+   USER_NAME is only the very first default shown before anyone edits
+   their profile. Once a name/photo is set from Profile → Edit name &
+   photo, that choice is saved on the device and used everywhere instead
+   (Home greeting, Profile, Settings) — this constant is then ignored.
    ============================================ */
 
 const CONFIG = {

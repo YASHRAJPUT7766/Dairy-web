@@ -37,10 +37,22 @@
 
     profileScreen: $('profileScreen'), profileBackBtn: $('profileBackBtn'), profileEditBtn: $('profileEditBtn'),
     profileAvatar: $('profileAvatar'), profileName: $('profileName'), profileSince: $('profileSince'),
+    profileBio: $('profileBio'),
     profileStatPages: $('profileStatPages'), profileStatWords: $('profileStatWords'),
     profileStatStreak: $('profileStatStreak'), profileStatDiaries: $('profileStatDiaries'),
     profileBadgesStrip: $('profileBadgesStrip'), profileGoSettingsBtn: $('profileGoSettingsBtn'),
-    profileGoHistoryBtn: $('profileGoHistoryBtn'),
+    profileGoHistoryBtn: $('profileGoHistoryBtn'), profileEditNameBtn: $('profileEditNameBtn'),
+    profileShareStatsBtn: $('profileShareStatsBtn'), avatarFileInput: $('avatarFileInput'),
+
+    editProfileSheetBackdrop: $('editProfileSheetBackdrop'), editProfileSheet: $('editProfileSheet'),
+    editProfileAvatarPreview: $('editProfileAvatarPreview'), editProfileChangePhotoBtn: $('editProfileChangePhotoBtn'),
+    editProfileRemovePhotoBtn: $('editProfileRemovePhotoBtn'), editProfileNameInput: $('editProfileNameInput'),
+    editProfileBioInput: $('editProfileBioInput'), editProfileSaveBtn: $('editProfileSaveBtn'),
+
+    settingsProfileCard: $('settingsProfileCard'), settingsProfileAvatar: $('settingsProfileAvatar'),
+    settingsProfileName: $('settingsProfileName'),
+    hapticsToggle: $('hapticsToggle'), soundToggle: $('soundToggle'),
+    clearAllDataBtn: $('clearAllDataBtn'), shareAppBtn: $('shareAppBtn'),
 
     insightsScreen: $('insightsScreen'), insightsDateLabel: $('insightsDateLabel'),
     insightsSeasonIcon: $('insightsSeasonIcon'), insightsWeatherText: $('insightsWeatherText'),
@@ -199,9 +211,56 @@
     catch { settings = {}; }
     if (!settings.speechLang) settings.speechLang = (window.CONFIG && CONFIG.SPEECH_LANG) || 'en-IN';
     if (!settings.reminderTime) settings.reminderTime = '21:00';
+    if (!settings.userName) settings.userName = (window.CONFIG && CONFIG.USER_NAME) || 'You';
+    if (settings.userBio === undefined) settings.userBio = '';
+    if (settings.userAvatar === undefined) settings.userAvatar = '';
+    if (settings.hapticsOn === undefined) settings.hapticsOn = true;
+    if (settings.soundOn === undefined) settings.soundOn = false;
     // PIN lock feature was removed — clear out any leftover pin from older versions
     // of the app so nobody gets stuck behind a PIN screen that no longer exists.
     if (settings.pin) { delete settings.pin; persistSettings(); }
+  }
+
+  // ---------- profile helpers (name / photo shown across Home, Profile, Insights, Settings) ----------
+
+  function getUserName() {
+    return (settings.userName && settings.userName.trim()) || 'You';
+  }
+
+  function getUserInitial() {
+    return getUserName().charAt(0).toUpperCase();
+  }
+
+  // Paints the current name/avatar into every place they appear in the app:
+  // home greeting, profile screen, settings profile card.
+  function applyProfileEverywhere() {
+    const name = getUserName();
+    const initial = getUserInitial();
+    const avatarSrc = settings.userAvatar;
+
+    // Home greeting
+    renderGreeting();
+
+    // Profile screen avatar + name
+    [el.profileAvatar, el.editProfileAvatarPreview, el.settingsProfileAvatar].forEach(node => {
+      if (!node) return;
+      if (avatarSrc) {
+        node.style.backgroundImage = `url(${avatarSrc})`;
+        node.style.backgroundSize = 'cover';
+        node.style.backgroundPosition = 'center';
+        node.textContent = '';
+      } else {
+        node.style.backgroundImage = '';
+        node.textContent = initial;
+      }
+    });
+    if (el.profileName) el.profileName.textContent = name;
+    if (el.settingsProfileName) el.settingsProfileName.textContent = name;
+    if (el.profileBio) {
+      const bio = (settings.userBio || '').trim();
+      el.profileBio.textContent = bio;
+      el.profileBio.hidden = !bio;
+    }
   }
 
   function persistSettings() {
@@ -215,7 +274,7 @@
     renderWeekStrip();
     el.todayFull.textContent = formatDateLong(new Date());
     renderHomePreview();
-    renderGreeting();
+    applyProfileEverywhere();
     renderStreak();
     renderMemory();
     renderQuote();
@@ -341,7 +400,7 @@
   function renderGreeting() {
     const h = new Date().getHours();
     const part = h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 21 ? 'evening' : 'night';
-    const name = (window.CONFIG && CONFIG.USER_NAME) || 'there';
+    const name = getUserName();
     el.homeGreeting.textContent = `Good ${part}, ${name}`;
   }
 
@@ -1686,14 +1745,106 @@
     applyDarkMode();
   }
 
+  // ============ EDIT PROFILE SHEET ============
+
+  function openEditProfileSheet() {
+    el.editProfileNameInput.value = getUserName() === 'You' ? '' : getUserName();
+    el.editProfileBioInput.value = settings.userBio || '';
+    applyProfileEverywhere();
+    el.editProfileSheetBackdrop.hidden = false;
+    el.editProfileSheet.hidden = false;
+    requestAnimationFrame(() => {
+      el.editProfileSheetBackdrop.classList.add('show');
+      el.editProfileSheet.classList.add('show');
+    });
+    setTimeout(() => el.editProfileNameInput.focus(), 300);
+  }
+
+  function closeEditProfileSheet() {
+    el.editProfileSheetBackdrop.classList.remove('show');
+    el.editProfileSheet.classList.remove('show');
+    setTimeout(() => {
+      el.editProfileSheetBackdrop.hidden = true;
+      el.editProfileSheet.hidden = true;
+    }, 300);
+  }
+
+  function handleAvatarFile(file) {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showToast('Please choose an image file'); return; }
+    if (file.size > 4 * 1024 * 1024) { showToast('Image is too large — try one under 4MB'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      settings.userAvatar = reader.result;
+      persistSettings();
+      applyProfileEverywhere();
+      showToast('Photo updated');
+    };
+    reader.onerror = () => showToast('Could not read that image');
+    reader.readAsDataURL(file);
+  }
+
+  function saveProfileEdits() {
+    const newName = el.editProfileNameInput.value.trim();
+    settings.userName = newName || 'You';
+    settings.userBio = el.editProfileBioInput.value.trim();
+    persistSettings();
+    applyProfileEverywhere();
+    closeEditProfileSheet();
+    showToast('Profile updated');
+  }
+
+  function removeProfilePhoto() {
+    settings.userAvatar = '';
+    persistSettings();
+    applyProfileEverywhere();
+    showToast('Photo removed');
+  }
+
+  function shareProfileStats() {
+    let totalPages = 0, totalWords = 0;
+    diaries.forEach(d => d.pages.forEach(p => {
+      totalPages++;
+      totalWords += (p.text || '').trim().split(/\s+/).filter(Boolean).length;
+    }));
+    const streak = computeLongestStreak(getAllDatesWithEntries());
+    const text = `${getUserName()}'s Voice Diary — ${totalPages} pages, ${totalWords.toLocaleString('en-IN')} words, ${streak} day best streak. 📖✨`;
+    if (navigator.share) {
+      navigator.share({ text }).catch(() => {});
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => showToast('Stats copied to clipboard'));
+    } else {
+      showToast(text);
+    }
+  }
+
+  function clearAllAppData() {
+    const ok = window.confirm('This will permanently delete all diaries, entries, and settings from this device. This cannot be undone. Continue?');
+    if (!ok) return;
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(SETTINGS_KEY);
+    showToast('All app data cleared');
+    setTimeout(() => window.location.reload(), 600);
+  }
+
+  function shareApp() {
+    const text = 'Voice Diary — speak, and it\'s written. Keep a diary by writing or just talking.';
+    const url = window.location.href;
+    if (navigator.share) {
+      navigator.share({ title: 'Voice Diary', text, url }).catch(() => {});
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(`${text} ${url}`).then(() => showToast('Link copied to clipboard'));
+    } else {
+      showToast('Share this app with a friend!');
+    }
+  }
+
   // ============ SETTINGS SCREEN ============
 
   // ============ PROFILE SCREEN ============
 
   function openProfileScreen() {
-    const name = (window.CONFIG && CONFIG.USER_NAME) || 'You';
-    el.profileName.textContent = name;
-    el.profileAvatar.textContent = name.charAt(0).toUpperCase();
+    applyProfileEverywhere();
 
     let totalPages = 0, totalWords = 0;
     diaries.forEach(d => d.pages.forEach(p => {
@@ -1851,6 +2002,7 @@
   }
 
   function openSettingsScreen() {
+    applyProfileEverywhere();
     el.darkModeToggle.checked = !!settings.darkMode;
 
     document.querySelectorAll('.lang-option').forEach(btn => {
@@ -1871,6 +2023,8 @@
       btn.classList.toggle('active', btn.dataset.font === (settings.diaryFont || 'serif'));
     });
     if (el.appLockToggle) el.appLockToggle.checked = !!settings.appLock;
+    if (el.hapticsToggle) el.hapticsToggle.checked = !!settings.hapticsOn;
+    if (el.soundToggle) el.soundToggle.checked = !!settings.soundOn;
 
     showScreen('settings');
   }
@@ -2025,9 +2179,27 @@
 
     // profile screen
     el.profileBackBtn.addEventListener('click', initHome);
-    el.profileEditBtn.addEventListener('click', openSettingsScreen);
+    el.profileEditBtn.addEventListener('click', openEditProfileSheet);
+    el.profileEditNameBtn.addEventListener('click', openEditProfileSheet);
     el.profileGoSettingsBtn.addEventListener('click', openSettingsScreen);
     el.profileGoHistoryBtn.addEventListener('click', openHistoryScreen);
+    el.profileShareStatsBtn.addEventListener('click', shareProfileStats);
+    el.profileAvatar.addEventListener('click', () => el.avatarFileInput.click());
+
+    // edit profile sheet
+    el.editProfileSheetBackdrop.addEventListener('click', closeEditProfileSheet);
+    el.editProfileAvatarPreview.addEventListener('click', () => el.avatarFileInput.click());
+    el.editProfileChangePhotoBtn.addEventListener('click', () => el.avatarFileInput.click());
+    el.editProfileRemovePhotoBtn.addEventListener('click', removeProfilePhoto);
+    el.avatarFileInput.addEventListener('change', (e) => {
+      handleAvatarFile(e.target.files && e.target.files[0]);
+      e.target.value = '';
+    });
+    el.editProfileSaveBtn.addEventListener('click', saveProfileEdits);
+    el.editProfileNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveProfileEdits(); });
+
+    // settings profile card
+    el.settingsProfileCard.addEventListener('click', openEditProfileSheet);
     el.homeDiaryPreview.addEventListener('click', () => {
       const latest = diaries[0];
       if (latest) openCoverScreen(latest.id);
@@ -2185,6 +2357,27 @@
     }
     if (el.sendFeedbackBtn) {
       el.sendFeedbackBtn.addEventListener('click', () => showToast('Feedback form coming soon'));
+    }
+    if (el.hapticsToggle) {
+      el.hapticsToggle.addEventListener('change', () => {
+        settings.hapticsOn = el.hapticsToggle.checked;
+        persistSettings();
+        if (settings.hapticsOn && navigator.vibrate) navigator.vibrate(15);
+        showToast(settings.hapticsOn ? 'Haptic feedback on' : 'Haptic feedback off');
+      });
+    }
+    if (el.soundToggle) {
+      el.soundToggle.addEventListener('change', () => {
+        settings.soundOn = el.soundToggle.checked;
+        persistSettings();
+        showToast(settings.soundOn ? 'Sound effects on' : 'Sound effects off');
+      });
+    }
+    if (el.clearAllDataBtn) {
+      el.clearAllDataBtn.addEventListener('click', clearAllAppData);
+    }
+    if (el.shareAppBtn) {
+      el.shareAppBtn.addEventListener('click', shareApp);
     }
 
     // keyboard nav for page flip (desktop testing convenience)
