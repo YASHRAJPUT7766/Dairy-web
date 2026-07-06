@@ -97,7 +97,8 @@
     fullscreenReader: $('fullscreenReader'), fsScrim: $('fsScrim'), fsSheet: $('fsSheet'),
     fsToolbar: $('fsToolbar'), fsCloseBtn: $('fsCloseBtn'),
     fsThemeBtn: $('fsThemeBtn'), fsStickerBtn: $('fsStickerBtn'), fsFontBtn: $('fsFontBtn'), fsExpandBtn: $('fsExpandBtn'),
-    fsVoiceNoteBtn: $('fsVoiceNoteBtn'),
+    fsVoiceNoteBtn: $('fsVoiceNoteBtn'), fsBookmarkBtn: $('fsBookmarkBtn'), fsPhotoBtn: $('fsPhotoBtn'), fsTagBtn: $('fsTagBtn'),
+    fsTtsBtn: $('fsTtsBtn'), fsTagsRow: $('fsTagsRow'), photoFileInput: $('photoFileInput'),
     fsHeadline: $('fsHeadline'), fsDate: $('fsDate'), fsBody: $('fsBody'), fsMicFab: $('fsMicFab'),
     fsContent: $('fsContent'), fsStickerLayer: $('fsStickerLayer'),
     recordingIndicator: $('recordingIndicator'), recordingTime: $('recordingTime'),
@@ -109,16 +110,27 @@
     themeApplyAllBtn: $('themeApplyAllBtn'), themeSheetScopeLabel: $('themeSheetScopeLabel'),
     stickerSheetBackdrop: $('stickerSheetBackdrop'), stickerSheet: $('stickerSheet'), stickerOptions: $('stickerOptions'),
 
+    tagSheetBackdrop: $('tagSheetBackdrop'), tagSheet: $('tagSheet'), tagOptions: $('tagOptions'),
+    customTagInput: $('customTagInput'), customTagAddBtn: $('customTagAddBtn'),
+
     historyScreen: $('historyScreen'), historyBackBtn: $('historyBackBtn'), diaryList: $('diaryList'),
     searchInput: $('searchInput'), searchResults: $('searchResults'),
+    bookmarksFilterChip: $('bookmarksFilterChip'), bookmarksList: $('bookmarksList'),
 
     settingsScreen: $('settingsScreen'), settingsBackBtn: $('settingsBackBtn'),
-    appLockToggle: $('appLockToggle'), backupReminderBtn: $('backupReminderBtn'),
+    appLockToggle: $('appLockToggle'), appLockRowSub: $('appLockRowSub'), changePinBtn: $('changePinBtn'),
+    backupReminderBtn: $('backupReminderBtn'),
     rateAppBtn: $('rateAppBtn'), sendFeedbackBtn: $('sendFeedbackBtn'),
     darkModeToggle: $('darkModeToggle'),
     langOptions: $('langOptions'), diaryFontOptions: $('diaryFontOptions'),
     reminderToggle: $('reminderToggle'), reminderRowSub: $('reminderRowSub'), reminderTime: $('reminderTime'),
-    exportAllBtn: $('exportAllBtn'),
+    exportAllBtn: $('exportAllBtn'), backupJsonBtn: $('backupJsonBtn'), restoreJsonBtn: $('restoreJsonBtn'),
+    restoreFileInput: $('restoreFileInput'),
+
+    lockScreen: $('lockScreen'), lockTitle: $('lockTitle'), lockSub: $('lockSub'), lockDots: $('lockDots'),
+    lockError: $('lockError'), lockKeypad: $('lockKeypad'), lockBackspaceBtn: $('lockBackspaceBtn'),
+    setPinSheetBackdrop: $('setPinSheetBackdrop'), setPinSheet: $('setPinSheet'), setPinTitle: $('setPinTitle'),
+    setPinSub: $('setPinSub'), setPinInput: $('setPinInput'), setPinSaveBtn: $('setPinSaveBtn'),
 
     deleteConfirm: $('deleteConfirm'), cancelDeleteBtn: $('cancelDeleteBtn'), confirmDeleteBtn: $('confirmDeleteBtn'),
     toast: $('toast'),
@@ -156,7 +168,11 @@
           setTimeout(() => {
             el.loadingScreen.hidden = true;
             el.app.hidden = false;
-            initHome();
+            if (settings.appLock && settings.pin) {
+              showLockScreen();
+            } else {
+              initHome();
+            }
           }, 600);
         }, 250);
         return;
@@ -213,6 +229,10 @@
         p.voiceClips.forEach(clip => {
           if (clip.widthPct === undefined) clip.widthPct = clip.width ? (clip.width / 180 * 100) : 78;
         });
+        if (!Array.isArray(p.photos)) p.photos = [];
+        if (!Array.isArray(p.tags)) p.tags = [];
+        if (p.bookmarked === undefined) p.bookmarked = false;
+        p.photos.forEach(ph => { if (ph.sizePct === undefined) ph.sizePct = 45; });
       });
     });
   }
@@ -238,9 +258,8 @@
     if (settings.userAvatar === undefined) settings.userAvatar = '';
     if (settings.hapticsOn === undefined) settings.hapticsOn = true;
     if (settings.soundOn === undefined) settings.soundOn = false;
-    // PIN lock feature was removed — clear out any leftover pin from older versions
-    // of the app so nobody gets stuck behind a PIN screen that no longer exists.
-    if (settings.pin) { delete settings.pin; persistSettings(); }
+    if (settings.appLock === undefined) settings.appLock = false;
+    if (settings.pin === undefined) settings.pin = '';
   }
 
   // ---------- profile helpers (name / photo shown across Home, Profile, Insights, Settings) ----------
@@ -659,10 +678,31 @@
 
   // ============ CREATE DIARY ============
 
+  // ============ DIARY TEMPLATES ============
+
+  const DIARY_TEMPLATES = {
+    plain: { label: 'Plain', headlinePlaceholder: "What was special today?", coverTheme: 'classic', prompt: '' },
+    gratitude: { label: 'Gratitude', headlinePlaceholder: 'Three things I\'m grateful for...', coverTheme: 'sunset', prompt: 'Today I\'m grateful for...' },
+    travel: { label: 'Travel', headlinePlaceholder: 'Where did you go today?', coverTheme: 'ocean', prompt: 'Today\'s journey took me to...' },
+    dream: { label: 'Dream', headlinePlaceholder: 'What did you dream about?', coverTheme: 'lavender', prompt: 'Last night I dreamt...' },
+  };
+  let selectedTemplate = 'plain';
+
+  function selectTemplate(key) {
+    selectedTemplate = key;
+    el.templateOptions.querySelectorAll('.template-chip').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.template === key);
+    });
+    const tpl = DIARY_TEMPLATES[key];
+    el.headlineInput.placeholder = tpl.headlinePlaceholder;
+    if (!el.firstEntryInput.value.trim()) el.firstEntryInput.placeholder = tpl.prompt || 'Write, or tap the mic and speak...';
+  }
+
   function openCreateScreen() {
     el.diaryNameInput.value = '';
     el.headlineInput.value = '';
     el.firstEntryInput.value = '';
+    selectTemplate('plain');
     showScreen('create');
     setTimeout(() => el.diaryNameInput.focus(), 300);
   }
@@ -675,14 +715,16 @@
     if (!name) { showToast('Enter a diary name'); el.diaryNameInput.focus(); return; }
     if (!headline) { showToast("Enter today's headline"); el.headlineInput.focus(); return; }
 
+    const tpl = DIARY_TEMPLATES[selectedTemplate] || DIARY_TEMPLATES.plain;
     const diary = {
       id: uid(),
       name,
       createdAt: new Date().toISOString(),
       font: 'serif',
-      coverTheme: 'classic',
+      coverTheme: tpl.coverTheme,
       coverStickers: [],
-      pages: [{ id: uid(), headline, date: new Date().toISOString(), text: text || '' }],
+      template: selectedTemplate,
+      pages: [{ id: uid(), headline, date: new Date().toISOString(), text: text || '', stickers: [], voiceClips: [], photos: [], tags: [], bookmarked: false }],
     };
     diaries.unshift(diary);
     persist();
@@ -892,6 +934,8 @@
       renderStickersForSheet(rightLayer, diary.pages[ri], ri);
       renderVoiceClipsForSheet(leftLayer, diary.pages[li], li);
       renderVoiceClipsForSheet(rightLayer, diary.pages[ri], ri);
+      renderPhotosForSheet(leftLayer, diary.pages[li], li);
+      renderPhotosForSheet(rightLayer, diary.pages[ri], ri);
     };
 
     if (direction) {
@@ -988,7 +1032,7 @@
   function addPageAndGo() {
     const diary = currentDiary();
     if (!diary) return;
-    diary.pages.push({ id: uid(), headline: '', date: new Date().toISOString(), text: '' });
+    diary.pages.push({ id: uid(), headline: '', date: new Date().toISOString(), text: '', stickers: [], voiceClips: [], photos: [], tags: [], bookmarked: false });
     persist();
     const newIdx = diary.pages.length - 1;
     renderSpread(Math.floor(newIdx / 2), 'next');
@@ -1737,6 +1781,9 @@
     el.fsSheet.dataset.theme = page.theme || diary.theme || 'parchment';
     renderStickersForSheet(el.fsStickerLayer, page, idx, { fullscreen: true });
     renderVoiceClipsForSheet(el.fsStickerLayer, page, idx, { fullscreen: true });
+    renderPhotosForSheet(el.fsStickerLayer, page, idx);
+    renderFsBookmark(page);
+    renderFsTags(page);
 
     el.fullscreenReader.hidden = false;
     el.bottomNav.classList.add('nav-hidden');
@@ -1758,6 +1805,7 @@
 
   function closeFullscreen() {
     saveFsEdits();
+    stopSpeaking();
     el.fullscreenReader.classList.remove('show');
     el.fullscreenReader.classList.remove('fs-fullscreen');
     el.bottomNav.classList.remove('nav-hidden');
@@ -1769,6 +1817,221 @@
   function toggleFullscreenExpand() {
     const isFull = el.fullscreenReader.classList.toggle('fs-fullscreen');
     el.fsExpandBtn.classList.toggle('active', isFull);
+  }
+
+  // ============ BOOKMARK (favorite pages) ============
+
+  function renderFsBookmark(page) {
+    el.fsBookmarkBtn.classList.toggle('active', !!page.bookmarked);
+  }
+
+  function toggleBookmark() {
+    if (editingIndex === null) return;
+    const diary = currentDiary();
+    if (!diary) return;
+    const page = diary.pages[editingIndex];
+    if (!page) return;
+    page.bookmarked = !page.bookmarked;
+    persist();
+    renderFsBookmark(page);
+    showToast(page.bookmarked ? 'Bookmarked' : 'Bookmark removed');
+  }
+
+  // ============ TAGS ============
+
+  function themeSheetTargetPageForTags() {
+    return (editingIndex !== null) ? editingIndex : getFocusedPageIndex();
+  }
+
+  function renderFsTags(page) {
+    if (!el.fsTagsRow) return;
+    const tags = Array.isArray(page.tags) ? page.tags : [];
+    if (!tags.length) { el.fsTagsRow.innerHTML = ''; return; }
+    el.fsTagsRow.innerHTML = tags.map(t => `
+      <span class="page-tag-pill" data-tag="${escapeHtml(t)}">${escapeHtml(t)}<button data-remove-tag="${escapeHtml(t)}">×</button></span>
+    `).join('');
+    el.fsTagsRow.querySelectorAll('[data-remove-tag]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeTagFromCurrentPage(btn.dataset.removeTag);
+      });
+    });
+  }
+
+  function openTagSheet() {
+    const idx = themeSheetTargetPageForTags();
+    const diary = currentDiary();
+    const page = diary && diary.pages[idx];
+    if (!page) { showToast('Add a page first.'); return; }
+    const tags = Array.isArray(page.tags) ? page.tags : [];
+    el.tagOptions.querySelectorAll('.tag-chip').forEach(btn => {
+      btn.classList.toggle('active', tags.includes(btn.dataset.tag));
+    });
+    el.customTagInput.value = '';
+    el.tagSheetBackdrop.hidden = false;
+    el.tagSheet.hidden = false;
+    requestAnimationFrame(() => {
+      el.tagSheetBackdrop.classList.add('show');
+      el.tagSheet.classList.add('show');
+    });
+  }
+
+  function closeTagSheet() {
+    el.tagSheetBackdrop.classList.remove('show');
+    el.tagSheet.classList.remove('show');
+    setTimeout(() => { el.tagSheetBackdrop.hidden = true; el.tagSheet.hidden = true; }, 350);
+  }
+
+  function toggleTagOnCurrentPage(tag) {
+    const idx = themeSheetTargetPageForTags();
+    const diary = currentDiary();
+    const page = diary && diary.pages[idx];
+    if (!page) return;
+    if (!Array.isArray(page.tags)) page.tags = [];
+    const pos = page.tags.indexOf(tag);
+    if (pos === -1) page.tags.push(tag);
+    else page.tags.splice(pos, 1);
+    persist();
+    el.tagOptions.querySelectorAll('.tag-chip').forEach(btn => {
+      if (btn.dataset.tag === tag) btn.classList.toggle('active', pos === -1);
+    });
+    if (!el.fullscreenReader.hidden) renderFsTags(page);
+  }
+
+  function addCustomTag() {
+    const val = el.customTagInput.value.trim();
+    if (!val) return;
+    const idx = themeSheetTargetPageForTags();
+    const diary = currentDiary();
+    const page = diary && diary.pages[idx];
+    if (!page) return;
+    if (!Array.isArray(page.tags)) page.tags = [];
+    if (!page.tags.includes(val)) page.tags.push(val);
+    persist();
+    el.customTagInput.value = '';
+    if (!el.fullscreenReader.hidden) renderFsTags(page);
+    showToast('Tag added');
+  }
+
+  function removeTagFromCurrentPage(tag) {
+    if (editingIndex === null) return;
+    const diary = currentDiary();
+    const page = diary && diary.pages[editingIndex];
+    if (!page || !Array.isArray(page.tags)) return;
+    page.tags = page.tags.filter(t => t !== tag);
+    persist();
+    renderFsTags(page);
+  }
+
+  // ============ TEXT-TO-SPEECH (read the page aloud) ============
+
+  let ttsUtterance = null;
+
+  function toggleSpeaking() {
+    if (!('speechSynthesis' in window)) { showToast('Read-aloud is not supported in this browser.'); return; }
+    if (window.speechSynthesis.speaking) { stopSpeaking(); return; }
+    if (editingIndex === null) return;
+    const diary = currentDiary();
+    const page = diary && diary.pages[editingIndex];
+    if (!page || !(page.text || page.headline)) { showToast('Nothing to read on this page.'); return; }
+
+    const content = [page.headline, page.text].filter(Boolean).join('. ');
+    ttsUtterance = new SpeechSynthesisUtterance(content);
+    ttsUtterance.lang = settings.speechLang || 'en-IN';
+    ttsUtterance.rate = 0.95;
+    ttsUtterance.onend = () => el.fsTtsBtn.classList.remove('speaking');
+    ttsUtterance.onerror = () => el.fsTtsBtn.classList.remove('speaking');
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(ttsUtterance);
+    el.fsTtsBtn.classList.add('speaking');
+  }
+
+  function stopSpeaking() {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    if (el.fsTtsBtn) el.fsTtsBtn.classList.remove('speaking');
+  }
+
+  // ============ PHOTO ATTACH (drag/resize, reuses the sticker overlay system) ============
+
+  function openPhotoPicker() {
+    const idx = (editingIndex !== null) ? editingIndex : getFocusedPageIndex();
+    const diary = currentDiary();
+    if (!diary || !diary.pages[idx]) { showToast('Add a page first.'); return; }
+    el.photoFileInput.value = '';
+    el.photoFileInput.click();
+  }
+
+  function handlePhotoFileSelected(file) {
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) { showToast('Image is too large — try one under 4MB'); return; }
+    const idx = (editingIndex !== null) ? editingIndex : getFocusedPageIndex();
+    const diary = currentDiary();
+    const page = diary && diary.pages[idx];
+    if (!page) { showToast('Add a page first.'); return; }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (!Array.isArray(page.photos)) page.photos = [];
+      page.photos.push({
+        id: uid(), dataUrl: reader.result,
+        x: 15 + Math.random() * 15, y: 10 + Math.random() * 10, sizePct: 45,
+      });
+      persist();
+      if (!el.fullscreenReader.hidden && editingIndex === idx) {
+        renderPhotosForSheet(el.fsStickerLayer, page, idx);
+      } else {
+        renderSpread(pairIndex, null);
+      }
+      showToast('Photo added — drag to place it');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function renderPhotosForSheet(layerEl, page, pageIdx) {
+    const container = layerEl;
+    if (!container) return;
+    container.querySelectorAll('.placed-photo').forEach(n => n.remove());
+    if (!page || !Array.isArray(page.photos) || !page.photos.length) {
+      syncContainerPointerEvents(container);
+      return;
+    }
+    page.photos.forEach(ph => {
+      const node = document.createElement('div');
+      node.className = 'placed-sticker placed-photo';
+      node.style.left = ph.x + '%';
+      node.style.top = ph.y + '%';
+      node.style.width = ph.sizePct + '%';
+      node.style.aspectRatio = '1 / 1';
+      node.dataset.photoId = ph.id;
+
+      const img = document.createElement('img');
+      img.src = ph.dataUrl;
+      img.alt = 'Attached photo';
+      img.draggable = false;
+      node.appendChild(img);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'sticker-remove-btn';
+      removeBtn.textContent = '×';
+      removeBtn.style.display = 'none';
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        page.photos = page.photos.filter(p => p.id !== ph.id);
+        persist();
+        node.remove();
+        syncContainerPointerEvents(container);
+      });
+      node.appendChild(removeBtn);
+
+      const handle = document.createElement('div');
+      handle.className = 'sticker-resize-handle';
+      handle.style.display = 'none';
+      node.appendChild(handle);
+
+      wireStickerDragResize(node, page, ph, container, removeBtn, handle);
+      container.appendChild(node);
+    });
+    syncContainerPointerEvents(container);
   }
 
   // a soft two-tone "swoosh" played with the Web Audio API — no audio file needed
@@ -1894,6 +2157,11 @@
 
   function runSearch(query) {
     const q = query.trim().toLowerCase();
+    if (bookmarksFilterActive && q) {
+      bookmarksFilterActive = false;
+      el.bookmarksFilterChip.classList.remove('active');
+      el.bookmarksList.hidden = true;
+    }
     if (!q) {
       el.searchResults.hidden = true;
       el.diaryList.hidden = false;
@@ -1990,7 +2258,55 @@
     el.searchInput.value = '';
     el.searchResults.hidden = true;
     el.diaryList.hidden = false;
+    if (el.bookmarksList) el.bookmarksList.hidden = true;
+    if (el.bookmarksFilterChip) el.bookmarksFilterChip.classList.remove('active');
     showScreen('history');
+  }
+
+  let bookmarksFilterActive = false;
+
+  function toggleBookmarksFilter() {
+    bookmarksFilterActive = !bookmarksFilterActive;
+    el.bookmarksFilterChip.classList.toggle('active', bookmarksFilterActive);
+    if (bookmarksFilterActive) {
+      el.searchInput.value = '';
+      el.searchResults.hidden = true;
+      el.diaryList.hidden = true;
+      renderBookmarksList();
+      el.bookmarksList.hidden = false;
+    } else {
+      el.bookmarksList.hidden = true;
+      el.diaryList.hidden = false;
+    }
+  }
+
+  function renderBookmarksList() {
+    const hits = [];
+    diaries.forEach(d => {
+      d.pages.forEach((p, idx) => {
+        if (p.bookmarked) hits.push({ diary: d, page: p, idx });
+      });
+    });
+    if (!hits.length) {
+      el.bookmarksList.innerHTML = '<p class="empty-note">No bookmarked pages yet. Tap the bookmark icon while writing a page to save it here.</p>';
+      return;
+    }
+    el.bookmarksList.innerHTML = hits.map(h => `
+      <div class="search-hit" data-diary-id="${h.diary.id}" data-page-idx="${h.idx}">
+        <div class="search-hit-title">🔖 ${escapeHtml(h.page.headline || '(no headline)')}${h.page.mood ? ' ' + h.page.mood : ''}</div>
+        <div class="search-hit-diary">${escapeHtml(h.diary.name)} · ${formatDateShort(new Date(h.page.date))}</div>
+        <div class="search-hit-snippet">${escapeHtml((h.page.text || '').slice(0, 90))}</div>
+      </div>
+    `).join('');
+    el.bookmarksList.querySelectorAll('.search-hit').forEach(hitEl => {
+      hitEl.addEventListener('click', () => {
+        const diaryId = hitEl.dataset.diaryId;
+        const pageIdx = Number(hitEl.dataset.pageIdx);
+        activeDiaryId = diaryId;
+        openBookScreen();
+        renderSpread(Math.floor(pageIdx / 2), null);
+      });
+    });
   }
 
   function renderDiaryList() {
@@ -2392,6 +2708,8 @@
       btn.classList.toggle('active', btn.dataset.font === (settings.diaryFont || 'serif'));
     });
     if (el.appLockToggle) el.appLockToggle.checked = !!settings.appLock;
+    if (el.changePinBtn) el.changePinBtn.hidden = !settings.appLock;
+    if (el.appLockRowSub) el.appLockRowSub.textContent = settings.appLock ? 'PIN required to open the app' : 'Require a PIN to open the app';
     if (el.hapticsToggle) el.hapticsToggle.checked = !!settings.hapticsOn;
     if (el.soundToggle) el.soundToggle.checked = !!settings.soundOn;
 
@@ -2420,6 +2738,120 @@
     persistSettings();
     document.querySelectorAll('.lang-option').forEach(btn => btn.classList.toggle('active', btn.dataset.lang === lang));
     showToast('Voice language updated');
+  }
+
+  // ============ APP LOCK / PIN ============
+
+  function openSetPinSheet(isChange) {
+    el.setPinTitle.textContent = isChange ? 'Change your PIN' : 'Set a 4-digit PIN';
+    el.setPinSub.textContent = isChange ? 'Enter a new 4-digit PIN' : "You'll need this to open the app";
+    el.setPinInput.value = '';
+    el.setPinSheetBackdrop.hidden = false;
+    el.setPinSheet.hidden = false;
+    requestAnimationFrame(() => {
+      el.setPinSheetBackdrop.classList.add('show');
+      el.setPinSheet.classList.add('show');
+      el.setPinInput.focus();
+    });
+  }
+
+  function closeSetPinSheet() {
+    el.setPinSheetBackdrop.classList.remove('show');
+    el.setPinSheet.classList.remove('show');
+    setTimeout(() => { el.setPinSheetBackdrop.hidden = true; el.setPinSheet.hidden = true; }, 350);
+  }
+
+  function saveNewPin() {
+    const pin = el.setPinInput.value.trim();
+    if (!/^\d{4}$/.test(pin)) { showToast('Enter exactly 4 digits'); return; }
+    settings.pin = pin;
+    settings.appLock = true;
+    persistSettings();
+    if (el.appLockToggle) el.appLockToggle.checked = true;
+    if (el.changePinBtn) el.changePinBtn.hidden = false;
+    if (el.appLockRowSub) el.appLockRowSub.textContent = 'PIN required to open the app';
+    closeSetPinSheet();
+    showToast('PIN saved');
+  }
+
+  // ---- lock screen shown at launch when app lock is on ----
+
+  let enteredPin = '';
+
+  function showLockScreen() {
+    enteredPin = '';
+    el.lockError.hidden = true;
+    renderLockDots();
+    el.lockScreen.hidden = false;
+  }
+
+  function renderLockDots() {
+    const dots = el.lockDots.querySelectorAll('.lock-dot');
+    dots.forEach((d, i) => d.classList.toggle('filled', i < enteredPin.length));
+  }
+
+  function handleLockKey(key) {
+    if (key === 'back') {
+      enteredPin = enteredPin.slice(0, -1);
+      renderLockDots();
+      return;
+    }
+    if (enteredPin.length >= 4) return;
+    enteredPin += key;
+    renderLockDots();
+    if (enteredPin.length === 4) {
+      setTimeout(() => {
+        if (enteredPin === settings.pin) {
+          el.lockScreen.hidden = true;
+          initHome();
+        } else {
+          el.lockError.hidden = false;
+          el.lockDots.querySelectorAll('.lock-dot').forEach(d => d.classList.add('shake-error'));
+          if (settings.hapticsOn && navigator.vibrate) navigator.vibrate([40, 40, 40]);
+          setTimeout(() => {
+            enteredPin = '';
+            renderLockDots();
+            el.lockDots.querySelectorAll('.lock-dot').forEach(d => d.classList.remove('shake-error'));
+          }, 450);
+        }
+      }, 150);
+    }
+  }
+
+  // ============ FULL JSON BACKUP / RESTORE ============
+
+  function downloadJsonBackup() {
+    const payload = { app: 'voice-diary', version: 2, exportedAt: new Date().toISOString(), diaries, settings: { ...settings, pin: undefined } };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `voice-diary-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('Backup downloaded');
+  }
+
+  function restoreFromJsonFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const payload = JSON.parse(reader.result);
+        const incoming = Array.isArray(payload) ? payload : payload.diaries;
+        if (!Array.isArray(incoming)) throw new Error('bad format');
+        diaries = incoming;
+        persist();
+        loadDiaries(); // re-run migrations on the restored data
+        showToast('Backup restored');
+        initHome();
+      } catch (err) {
+        showToast("Couldn't read that backup file.");
+      }
+    };
+    reader.readAsText(file);
   }
 
   function formatTime12(hhmm) {
@@ -2603,6 +3035,11 @@
 
     el.createBackBtn.addEventListener('click', initHome);
     el.confirmCreateBtn.addEventListener('click', confirmCreate);
+    if (el.templateOptions) {
+      el.templateOptions.querySelectorAll('.template-chip').forEach(btn => {
+        btn.addEventListener('click', () => selectTemplate(btn.dataset.template));
+      });
+    }
     el.createMicBtn.addEventListener('click', () => toggleRecording('create'));
 
     el.coverBackBtn.addEventListener('click', initHome);
@@ -2704,6 +3141,17 @@
     el.fsStickerBtn.addEventListener('click', openStickerSheet);
     el.fsFontBtn.addEventListener('click', openFontSheet);
     el.fsExpandBtn.addEventListener('click', toggleFullscreenExpand);
+    el.fsBookmarkBtn.addEventListener('click', toggleBookmark);
+    el.fsTagBtn.addEventListener('click', openTagSheet);
+    el.fsPhotoBtn.addEventListener('click', openPhotoPicker);
+    el.fsTtsBtn.addEventListener('click', toggleSpeaking);
+    el.photoFileInput.addEventListener('change', () => handlePhotoFileSelected(el.photoFileInput.files[0]));
+    el.tagSheetBackdrop.addEventListener('click', closeTagSheet);
+    el.tagOptions.querySelectorAll('.tag-chip').forEach(btn => {
+      btn.addEventListener('click', () => toggleTagOnCurrentPage(btn.dataset.tag));
+    });
+    el.customTagAddBtn.addEventListener('click', addCustomTag);
+    el.customTagInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addCustomTag(); });
 
     el.themeSheetBackdrop.addEventListener('click', closeThemeSheet);
     el.themeOptions.querySelectorAll('.theme-swatch').forEach(btn => {
@@ -2725,6 +3173,7 @@
     el.cancelDeleteBtn.addEventListener('click', cancelDelete);
     el.confirmDeleteBtn.addEventListener('click', confirmDelete);
     el.searchInput.addEventListener('input', () => runSearch(el.searchInput.value));
+    if (el.bookmarksFilterChip) el.bookmarksFilterChip.addEventListener('click', toggleBookmarksFilter);
 
     el.undoToastBtn.addEventListener('click', performUndo);
 
@@ -2746,11 +3195,26 @@
     });
     if (el.appLockToggle) {
       el.appLockToggle.addEventListener('change', () => {
-        settings.appLock = el.appLockToggle.checked;
-        persistSettings();
-        showToast(settings.appLock ? 'App lock enabled' : 'App lock disabled');
+        if (el.appLockToggle.checked) {
+          // don't flip settings.appLock on yet — wait until a PIN is actually set
+          el.appLockToggle.checked = false;
+          openSetPinSheet(false);
+        } else {
+          settings.appLock = false;
+          settings.pin = '';
+          persistSettings();
+          if (el.changePinBtn) el.changePinBtn.hidden = true;
+          if (el.appLockRowSub) el.appLockRowSub.textContent = 'Require a PIN to open the app';
+          showToast('App lock disabled');
+        }
       });
     }
+    if (el.changePinBtn) el.changePinBtn.addEventListener('click', () => openSetPinSheet(true));
+    if (el.setPinSaveBtn) el.setPinSaveBtn.addEventListener('click', saveNewPin);
+    if (el.setPinSheetBackdrop) el.setPinSheetBackdrop.addEventListener('click', closeSetPinSheet);
+    if (el.backupJsonBtn) el.backupJsonBtn.addEventListener('click', downloadJsonBackup);
+    if (el.restoreJsonBtn) el.restoreJsonBtn.addEventListener('click', () => { el.restoreFileInput.value = ''; el.restoreFileInput.click(); });
+    if (el.restoreFileInput) el.restoreFileInput.addEventListener('change', () => restoreFromJsonFile(el.restoreFileInput.files[0]));
     if (el.backupReminderBtn) {
       el.backupReminderBtn.addEventListener('click', () => showToast('Weekly backup reminder set'));
     }
@@ -2780,6 +3244,13 @@
     }
     if (el.shareAppBtn) {
       el.shareAppBtn.addEventListener('click', shareApp);
+    }
+
+    if (el.lockKeypad) {
+      el.lockKeypad.addEventListener('click', (e) => {
+        const btn = e.target.closest('.lock-key');
+        if (btn) handleLockKey(btn.dataset.key);
+      });
     }
 
     // keyboard nav for page flip (desktop testing convenience)
