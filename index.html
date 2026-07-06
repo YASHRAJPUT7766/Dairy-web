@@ -200,6 +200,14 @@
     </header>
 
     <div class="create-body">
+      <label class="create-label">Template</label>
+      <div class="template-options" id="templateOptions">
+        <button class="template-chip active" data-template="plain">📔 Plain</button>
+        <button class="template-chip" data-template="gratitude">🙏 Gratitude</button>
+        <button class="template-chip" data-template="travel">✈️ Travel</button>
+        <button class="template-chip" data-template="dream">🌙 Dream</button>
+      </div>
+
       <label class="create-label">Diary name</label>
       <input type="text" class="create-input" id="diaryNameInput" placeholder="e.g. My Life" maxlength="40">
 
@@ -301,6 +309,69 @@
     <button class="sheet-action-btn sheet-action-danger" id="coverStickerClearBtn">Clear all cover stickers</button>
   </div>
 
+  <!-- ============ TAG PICKER SHEET (per-page tags/categories) ============ -->
+  <div class="sheet-backdrop" id="tagSheetBackdrop" hidden></div>
+  <div class="bottom-sheet" id="tagSheet" hidden>
+    <div class="sheet-handle"></div>
+    <h3 class="sheet-title">Tag this page</h3>
+    <p class="sheet-sub">Tap to toggle a tag, or add your own</p>
+    <div class="tag-options" id="tagOptions">
+      <button class="tag-chip" data-tag="travel">✈️ Travel</button>
+      <button class="tag-chip" data-tag="family">👨‍👩‍👧 Family</button>
+      <button class="tag-chip" data-tag="gratitude">🙏 Gratitude</button>
+      <button class="tag-chip" data-tag="work">💼 Work</button>
+      <button class="tag-chip" data-tag="dream">🌙 Dream</button>
+      <button class="tag-chip" data-tag="friends">🤝 Friends</button>
+      <button class="tag-chip" data-tag="health">💪 Health</button>
+      <button class="tag-chip" data-tag="love">❤️ Love</button>
+      <button class="tag-chip" data-tag="goals">🎯 Goals</button>
+      <button class="tag-chip" data-tag="milestone">🏆 Milestone</button>
+    </div>
+    <div class="tag-custom-row">
+      <input type="text" class="create-input" id="customTagInput" placeholder="Custom tag..." maxlength="18">
+      <button class="solid-btn" id="customTagAddBtn">Add</button>
+    </div>
+  </div>
+
+  <input type="file" id="photoFileInput" accept="image/*" hidden>
+
+  <!-- ============ APP LOCK / PIN SCREEN ============ -->
+  <div class="lock-screen" id="lockScreen" hidden>
+    <div class="lock-inner">
+      <span class="lock-icon">🔒</span>
+      <p class="lock-title" id="lockTitle">Enter your PIN</p>
+      <p class="lock-sub" id="lockSub">Your diary is private</p>
+      <div class="lock-dots" id="lockDots">
+        <span class="lock-dot"></span><span class="lock-dot"></span><span class="lock-dot"></span><span class="lock-dot"></span>
+      </div>
+      <p class="lock-error" id="lockError" hidden>Incorrect PIN, try again</p>
+      <div class="lock-keypad" id="lockKeypad">
+        <button class="lock-key" data-key="1">1</button>
+        <button class="lock-key" data-key="2">2</button>
+        <button class="lock-key" data-key="3">3</button>
+        <button class="lock-key" data-key="4">4</button>
+        <button class="lock-key" data-key="5">5</button>
+        <button class="lock-key" data-key="6">6</button>
+        <button class="lock-key" data-key="7">7</button>
+        <button class="lock-key" data-key="8">8</button>
+        <button class="lock-key" data-key="9">9</button>
+        <span></span>
+        <button class="lock-key" data-key="0">0</button>
+        <button class="lock-key" id="lockBackspaceBtn" data-key="back">⌫</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SET PIN SHEET (from Settings) ============ -->
+  <div class="sheet-backdrop" id="setPinSheetBackdrop" hidden></div>
+  <div class="bottom-sheet" id="setPinSheet" hidden>
+    <div class="sheet-handle"></div>
+    <h3 class="sheet-title" id="setPinTitle">Set a 4-digit PIN</h3>
+    <p class="sheet-sub" id="setPinSub">You'll need this to open the app</p>
+    <input type="password" class="create-input" id="setPinInput" placeholder="••••" maxlength="4" inputmode="numeric" pattern="[0-9]*">
+    <button class="solid-btn wide" id="setPinSaveBtn">Save PIN</button>
+  </div>
+
   <!-- ============ SIGNATURE EDIT SHEET ============ -->
   <div class="sheet-backdrop" id="signatureSheetBackdrop" hidden></div>
   <div class="bottom-sheet" id="signatureSheet" hidden>
@@ -385,9 +456,14 @@
     <div class="fs-scrim" id="fsScrim"></div>
     <div class="fs-sheet" id="fsSheet">
       <header class="fs-toolbar" id="fsToolbar">
-        <button class="fs-close" id="fsCloseBtn" aria-label="Collapse">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg>
-        </button>
+        <div class="fs-toolbar-left">
+          <button class="fs-close" id="fsCloseBtn" aria-label="Collapse">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+          <button class="fs-bookmark-btn" id="fsBookmarkBtn" aria-label="Bookmark this page">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg>
+          </button>
+        </div>
         <div class="fs-toolbar-actions">
           <button class="fs-tool-btn" id="fsThemeBtn" aria-label="Theme">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18c1.5 0 2-1 2-2.2 0-.8-.3-1.2-.7-1.7-.4-.5-.7-.9-.7-1.6 0-1.2 1-2 2.2-2H17a4 4 0 0 0 4-4c0-4.4-4-6.5-9-6.5Z"/></svg>
@@ -397,9 +473,17 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M15 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 1 2-2 4 4 0 0 0-4-6Z"/><path d="M16 3.5V8a2 2 0 0 0 2 2h4.5"/></svg>
             <span>Stickers</span>
           </button>
+          <button class="fs-tool-btn" id="fsPhotoBtn" aria-label="Add photo">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 16l-5-5-5 5-3-3-3 3"/></svg>
+            <span>Photo</span>
+          </button>
           <button class="fs-tool-btn" id="fsVoiceNoteBtn" aria-label="Add voice note">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5V6a3.5 3.5 0 0 0-7 0v5.5A3.5 3.5 0 0 0 12 15Z"/><path d="M19 11.5a7 7 0 0 1-14 0M12 18.5V22"/></svg>
             <span>Voice</span>
+          </button>
+          <button class="fs-tool-btn" id="fsTagBtn" aria-label="Tags">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20.6 12.6 12.6 4H4v8.6l8.6 8.6a2 2 0 0 0 2.8 0l5.2-5.2a2 2 0 0 0 0-2.8Z"/><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"/></svg>
+            <span>Tags</span>
           </button>
           <button class="fs-tool-btn" id="fsFontBtn" aria-label="Font">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 19h14M8 15l4-10 4 10M9.5 12h5"/></svg>
@@ -414,7 +498,13 @@
 
       <div class="fs-content" id="fsContent">
         <h1 class="fs-headline" id="fsHeadline" contenteditable="true"></h1>
-        <div class="fs-date" id="fsDate"></div>
+        <div class="fs-date-row">
+          <div class="fs-date" id="fsDate"></div>
+          <button class="fs-tts-btn" id="fsTtsBtn" aria-label="Read aloud">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M16 8a5 5 0 0 1 0 8M19 5a9 9 0 0 1 0 14"/></svg>
+          </button>
+        </div>
+        <div class="fs-tags-row" id="fsTagsRow"></div>
         <div class="fs-body" id="fsBody" contenteditable="true"></div>
         <div class="fs-sticker-layer" id="fsStickerLayer"></div>
       </div>
@@ -526,8 +616,13 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input type="text" class="search-input" id="searchInput" placeholder="Search all pages...">
     </div>
+    <button class="bookmarks-filter-chip" id="bookmarksFilterChip">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg>
+      <span>Bookmarked pages</span>
+    </button>
     <div class="diary-list" id="diaryList"></div>
     <div class="search-results" id="searchResults" hidden></div>
+    <div class="search-results" id="bookmarksList" hidden></div>
   </section>
 
   <!-- ============ SETTINGS SCREEN ============ -->
@@ -624,17 +719,21 @@
       <p class="settings-group-label">Privacy</p>
       <div class="settings-row">
         <div class="settings-row-text">
-          <span class="settings-row-title">App lock</span>
-          <span class="settings-row-sub">Require device unlock to open</span>
+          <span class="settings-row-title">App lock (PIN)</span>
+          <span class="settings-row-sub" id="appLockRowSub">Require a PIN to open the app</span>
         </div>
         <label class="switch">
           <input type="checkbox" id="appLockToggle">
           <span class="switch-track"></span>
         </label>
       </div>
+      <button class="settings-link-btn" id="changePinBtn" hidden>Change PIN</button>
 
       <p class="settings-group-label">Your data</p>
       <button class="settings-link-btn" id="exportAllBtn">Export all diaries as text</button>
+      <button class="settings-link-btn" id="backupJsonBtn">Download full backup (.json)</button>
+      <button class="settings-link-btn" id="restoreJsonBtn">Restore from backup file</button>
+      <input type="file" id="restoreFileInput" accept="application/json" hidden>
       <button class="settings-link-btn" id="backupReminderBtn">Set weekly backup reminder</button>
       <button class="settings-link-btn sheet-action-danger" id="clearAllDataBtn">Clear all app data</button>
 
