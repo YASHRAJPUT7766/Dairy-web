@@ -198,9 +198,21 @@
       if (!d.coverTheme) d.coverTheme = 'classic';
       if (!Array.isArray(d.coverStickers)) d.coverStickers = [];
       if (!d.signature) d.signature = 'made by Yash';
+      (d.coverStickers || []).forEach(st => {
+        if (st.sizePct === undefined) st.sizePct = st.size ? (st.size / 260 * 100) : 22;
+      });
       d.pages.forEach(p => {
         if (!Array.isArray(p.stickers)) p.stickers = [];
         if (!Array.isArray(p.voiceClips)) p.voiceClips = [];
+        // old builds stored sticker size / voice clip width as raw pixels, which don't
+        // scale between the small book view and the fullscreen view — convert once to
+        // percentages of the page width so placement + size stay consistent everywhere.
+        p.stickers.forEach(st => {
+          if (st.sizePct === undefined) st.sizePct = st.size ? (st.size / 180 * 100) : 30;
+        });
+        p.voiceClips.forEach(clip => {
+          if (clip.widthPct === undefined) clip.widthPct = clip.width ? (clip.width / 180 * 100) : 78;
+        });
       });
     });
   }
@@ -785,7 +797,7 @@
     diary.coverStickers.push({
       id: uid(), key: stickerKey,
       x: 30 + Math.random() * 20, y: 20 + Math.random() * 20,
-      size: 52,
+      sizePct: 20,
     });
     persist();
     closeCoverStickerSheet();
@@ -806,8 +818,8 @@
       node.className = 'placed-sticker';
       node.style.left = st.x + '%';
       node.style.top = st.y + '%';
-      node.style.width = st.size + 'px';
-      node.style.height = st.size + 'px';
+      node.style.width = st.sizePct + '%';
+      node.style.aspectRatio = '1 / 1';
       node.dataset.stickerId = st.id;
 
       const img = document.createElement('img');
@@ -1151,7 +1163,7 @@
     page.stickers.push({
       id: uid(), key: stickerKey,
       x: 38 + Math.random() * 10, y: 14 + Math.random() * 10, // percent-based position
-      size: 64,
+      sizePct: 32,
     });
     persist();
     closeStickerSheet();
@@ -1183,8 +1195,8 @@
       node.className = 'placed-sticker';
       node.style.left = st.x + '%';
       node.style.top = st.y + '%';
-      node.style.width = st.size + 'px';
-      node.style.height = st.size + 'px';
+      node.style.width = st.sizePct + '%';
+      node.style.aspectRatio = '1 / 1';
       node.dataset.stickerId = st.id;
 
       const img = document.createElement('img');
@@ -1223,8 +1235,10 @@
   }
 
   function syncContainerPointerEvents(container) {
-    const hasContent = container.querySelector('.placed-sticker, .placed-voice-clip');
-    container.style.pointerEvents = hasContent ? 'auto' : 'none';
+    // the overlay itself must always stay click-through so taps reach the text
+    // underneath; only the individual placed items (which set their own
+    // pointer-events: auto in CSS) should actually be interactive.
+    if (container) container.style.pointerEvents = 'none';
   }
 
   function deselectAllStickers(container) {
@@ -1269,7 +1283,7 @@
       selectThis();
       resizing = true;
       startX = e.clientX; startY = e.clientY;
-      startSize = stickerData.size;
+      startSize = stickerData.sizePct;
       handle.setPointerCapture && handle.setPointerCapture(e.pointerId);
     });
 
@@ -1284,10 +1298,12 @@
         node.style.left = stickerData.x + '%';
         node.style.top = stickerData.y + '%';
       } else if (resizing) {
-        const delta = (e.clientX - startX + e.clientY - startY) / 2;
-        stickerData.size = Math.max(28, Math.min(220, startSize + delta));
-        node.style.width = stickerData.size + 'px';
-        node.style.height = stickerData.size + 'px';
+        // resize by dragging the handle; convert the pixel drag distance into a
+        // percentage of the container width so the stored size is resolution-independent
+        const deltaPx = (e.clientX - startX + e.clientY - startY) / 2;
+        const deltaPct = (deltaPx / rect.width) * 100;
+        stickerData.sizePct = Math.max(10, Math.min(70, startSize + deltaPct));
+        node.style.width = stickerData.sizePct + '%';
       }
     }
     function onUp() {
@@ -1323,7 +1339,7 @@
       node.className = 'placed-voice-clip';
       node.style.left = clip.x + '%';
       node.style.top = clip.y + '%';
-      node.style.width = (clip.width || 160) + 'px';
+      node.style.width = (clip.widthPct || 78) + '%';
       node.dataset.clipId = clip.id;
 
       const playBtn = document.createElement('button');
@@ -1457,7 +1473,7 @@
       e.stopPropagation();
       resizing = true;
       startX = e.clientX;
-      startWidth = clipData.width || 160;
+      startWidth = clipData.widthPct || 78;
       handle.setPointerCapture && handle.setPointerCapture(e.pointerId);
     });
 
@@ -1472,8 +1488,9 @@
         node.style.left = clipData.x + '%';
         node.style.top = clipData.y + '%';
       } else if (resizing) {
-        clipData.width = Math.max(120, Math.min(340, startWidth + (e.clientX - startX)));
-        node.style.width = clipData.width + 'px';
+        const deltaPct = ((e.clientX - startX) / rect.width) * 100;
+        clipData.widthPct = Math.max(45, Math.min(96, startWidth + deltaPct));
+        node.style.width = clipData.widthPct + '%';
       }
     }
     function onUp() {
@@ -1592,7 +1609,7 @@
         if (!page) return;
         if (!Array.isArray(page.voiceClips)) page.voiceClips = [];
         page.voiceClips.push({
-          id: uid(), x: 8 + Math.random() * 10, y: 6 + Math.random() * 8, width: 170,
+          id: uid(), x: 8 + Math.random() * 10, y: 6 + Math.random() * 8, widthPct: 78,
           dataUrl, duration: durationSec, waveform,
         });
         persist();
@@ -1704,10 +1721,10 @@
 
   // ============ FULLSCREEN, EDITABLE, SINGLE-PAGE VIEW ============
 
-  function openFullscreen() {
+  function openFullscreen(forcedIdx) {
     const diary = currentDiary();
     if (!diary) return;
-    let idx = getFocusedPageIndex();
+    let idx = (typeof forcedIdx === 'number') ? forcedIdx : getFocusedPageIndex();
     if (!diary.pages[idx]) idx = pairIndex * 2;
     if (!diary.pages[idx]) { showToast('Add a page first.'); return; }
 
@@ -2641,6 +2658,19 @@
     el.pageSheetRight.addEventListener('focusout', () => saveSheetEdits(el.pageSheetRight));
     el.pageSheetLeft.addEventListener('input', () => scheduleAutosave(() => saveSheetEdits(el.pageSheetLeft)));
     el.pageSheetRight.addEventListener('input', () => scheduleAutosave(() => saveSheetEdits(el.pageSheetRight)));
+
+    const leftMaximizeBtn = el.pageSheetLeft.querySelector('[data-action="maximize"]');
+    const rightMaximizeBtn = el.pageSheetRight.querySelector('[data-action="maximize"]');
+    if (leftMaximizeBtn) leftMaximizeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      saveSheetEdits(el.pageSheetLeft);
+      openFullscreen(pairIndex * 2);
+    });
+    if (rightMaximizeBtn) rightMaximizeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      saveSheetEdits(el.pageSheetRight);
+      openFullscreen(pairIndex * 2 + 1);
+    });
 
     el.fontBtn.addEventListener('click', openFontSheet);
     el.fontSheetBackdrop.addEventListener('click', closeFontSheet);
