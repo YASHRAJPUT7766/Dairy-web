@@ -118,11 +118,11 @@ input, textarea { font-family: inherit; }
 
 /* ============ HOME SCREEN ============ */
 
-.home-top { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 4px; }
-.home-top-actions { display: flex; gap: 2px; }
-.home-logo { display: flex; align-items: center; gap: 12px; }
-.home-logo-img { width: 92px; height: 92px; object-fit: contain; display: block; }
-.home-logo-text { font-family: var(--serif); font-size: 22px; font-weight: 500; letter-spacing: 0.2px; }
+.home-top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0 4px; gap: 8px; }
+.home-top-actions { display: flex; gap: 2px; flex-shrink: 0; }
+.home-logo { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.home-logo-img { width: 54px; height: 54px; object-fit: contain; display: block; flex-shrink: 0; }
+.home-logo-text { font-family: var(--serif); font-size: 21px; font-weight: 500; letter-spacing: 0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .voiceprint-fab {
   display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 0 0 6px auto; width: fit-content;
