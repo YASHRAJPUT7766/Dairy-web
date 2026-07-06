@@ -74,6 +74,7 @@
 
     createScreen: $('createScreen'), createBackBtn: $('createBackBtn'),
     diaryNameInput: $('diaryNameInput'), headlineInput: $('headlineInput'), firstEntryInput: $('firstEntryInput'),
+    templateOptions: $('templateOptions'),
     createMicBtn: $('createMicBtn'), createMicStatus: $('createMicStatus'), confirmCreateBtn: $('confirmCreateBtn'),
 
     coverScreen: $('coverScreen'), coverBackBtn: $('coverBackBtn'), bookCover: $('bookCover'),
@@ -690,12 +691,16 @@
 
   function selectTemplate(key) {
     selectedTemplate = key;
-    el.templateOptions.querySelectorAll('.template-chip').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.template === key);
-    });
-    const tpl = DIARY_TEMPLATES[key];
-    el.headlineInput.placeholder = tpl.headlinePlaceholder;
-    if (!el.firstEntryInput.value.trim()) el.firstEntryInput.placeholder = tpl.prompt || 'Write, or tap the mic and speak...';
+    if (el.templateOptions) {
+      el.templateOptions.querySelectorAll('.template-chip').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.template === key);
+      });
+    }
+    const tpl = DIARY_TEMPLATES[key] || DIARY_TEMPLATES.plain;
+    if (el.headlineInput) el.headlineInput.placeholder = tpl.headlinePlaceholder;
+    if (el.firstEntryInput && !el.firstEntryInput.value.trim()) {
+      el.firstEntryInput.placeholder = tpl.prompt || 'Write, or tap the mic and speak...';
+    }
   }
 
   function openCreateScreen() {
