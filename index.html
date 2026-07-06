@@ -56,11 +56,6 @@
       </div>
     </header>
 
-    <button class="voiceprint-fab" id="voiceprintBtn" aria-label="Voiceprint ID">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2a5 5 0 0 0-5 5v4a5 5 0 0 0 10 0V7a5 5 0 0 0-5-5Z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/></svg>
-      <span>Voiceprint ID</span>
-    </button>
-
     <p class="home-greeting pen-write" id="homeGreeting">Good evening, Yash<span class="pen-underline"></span></p>
     <p class="weather-date-widget" id="weatherWidget"><span id="seasonIcon">☀️</span> <span id="weatherText">Sunday, 5 July</span></p>
     <div class="streak-pill" id="streakPill" hidden>
@@ -68,55 +63,17 @@
       <span id="streakText">0 day streak</span>
     </div>
 
-    <!-- Recent Reflections — open book spread, styled after the reference -->
-    <p class="section-label" id="recentReflectionsLabel" hidden>Recent Reflections</p>
-    <div class="home-diary-preview" id="homeDiaryPreview">
-      <div class="reflection-book-frame">
-        <div class="reflection-book" id="reflectionBook">
-          <div class="reflection-page reflection-page-left">
-            <span class="reflection-page-kicker">This is yours</span>
-            <p class="reflection-page-text" id="reflectionLeftText">Spent the day reflecting on the new design, felt creative.</p>
-            <div class="reflection-voice-row">
-              <span class="reflection-voice-label" id="reflectionLeftLabel">Voice entry</span>
-              <span class="reflection-mood-chip" id="reflectionLeftMood">😐</span>
-            </div>
-            <div class="reflection-waveform" id="reflectionLeftWave">
-              <button class="wave-play-btn" aria-label="Play"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
-              <span class="wave-bars"></span>
-            </div>
-            <span class="reflection-feather">🖋️</span>
-          </div>
-          <div class="reflection-spine"></div>
-          <div class="reflection-page reflection-page-right">
-            <span class="reflection-page-kicker reflection-page-kicker-right">Tap in and keep writing</span>
-            <div class="reflection-waveform reflection-waveform-top" id="reflectionRightWave">
-              <button class="wave-play-btn" aria-label="Play"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
-              <span class="wave-bars"></span>
-            </div>
-            <p class="reflection-page-text" id="reflectionRightText">Voice entry about that afternoon walk was nice… mood was calm.</p>
-            <span class="reflection-mood-chip reflection-mood-chip-solo" id="reflectionRightMood">🙂</span>
-            <span class="reflection-headphones">🎧</span>
-          </div>
-        </div>
-      </div>
-      <p class="mini-book-meta" id="miniBookMeta">2 segments · tap to open</p>
-    </div>
-
-    <!-- diary carousel dots (multiple diaries) -->
-    <div class="diary-dots" id="diaryDots" hidden></div>
-
-    <!-- Diary preview + create — kept near the top -->
+    <!-- Create New Diary — old dusty-yellow accent button, right under greeting/streak -->
     <div class="home-mid">
-      <div class="empty-state ink-fade" id="emptyState" hidden>
-        <span class="empty-illustration">📖✨</span>
-        <p class="empty-text">Your story starts with one page.</p>
-      </div>
-
-      <button class="create-btn" id="createNewBtn">
+      <button class="create-btn create-btn-dusty" id="createNewBtn">
         <span class="pen-nib">🖋️</span><span>Create New Diary</span>
       </button>
       <p class="home-hint" id="homeHint">You have 1 diary</p>
     </div>
+
+    <!-- Recent Diary — grid of diary cards, shrinks as more diaries are added -->
+    <p class="section-label" id="recentReflectionsLabel">Recent Diary</p>
+    <div class="diary-grid" id="diaryGrid"></div>
 
     <!-- Quick actions -->
     <div class="quick-actions" id="quickActions">
@@ -225,6 +182,24 @@
         </button>
       </div>
       <p class="mic-status" id="createMicStatus" hidden>Listening...</p>
+
+      <label class="create-label">Lock this diary <span class="edit-field-optional">(optional)</span></label>
+      <div class="lock-type-options" id="createLockTypeOptions">
+        <button class="lock-type-chip active" data-locktype="none">🔓 No lock</button>
+        <button class="lock-type-chip" data-locktype="pin">🔢 PIN</button>
+        <button class="lock-type-chip" data-locktype="pattern">🔣 Pattern</button>
+      </div>
+      <div class="create-lock-fields" id="createLockFields" hidden>
+        <input type="password" class="create-input" id="createLockSecretInput" placeholder="4-digit PIN" maxlength="4" inputmode="numeric" pattern="[0-9]*">
+        <label class="create-label">Security question <span class="edit-field-optional">(for Forgot lock)</span></label>
+        <select class="create-input" id="createLockQuestionSelect">
+          <option value="sport">What is your favourite sport?</option>
+          <option value="dob">What is your date of birth?</option>
+          <option value="pet">What is your pet's name?</option>
+          <option value="city">Which city were you born in?</option>
+        </select>
+        <input type="text" class="create-input" id="createLockAnswerInput" placeholder="Your answer" maxlength="40">
+      </div>
 
       <button class="solid-btn wide" id="confirmCreateBtn">Create diary</button>
     </div>
@@ -362,6 +337,47 @@
     </div>
   </div>
 
+  <!-- ============ DIARY LOCK SCREEN (per-diary, shown before opening a locked diary) ============ -->
+  <div class="lock-screen" id="diaryLockScreen" hidden>
+    <div class="lock-inner">
+      <span class="lock-icon">🔒</span>
+      <p class="lock-title" id="diaryLockTitle">Enter PIN</p>
+      <p class="lock-sub" id="diaryLockSub">This diary is locked</p>
+      <div class="lock-dots" id="diaryLockDots">
+        <span class="lock-dot"></span><span class="lock-dot"></span><span class="lock-dot"></span><span class="lock-dot"></span>
+      </div>
+      <input type="text" class="create-input diary-lock-pattern-input" id="diaryLockPatternInput" placeholder="Enter pattern" hidden maxlength="20">
+      <p class="lock-error" id="diaryLockError" hidden>Incorrect, try again</p>
+      <div class="lock-keypad" id="diaryLockKeypad">
+        <button class="lock-key" data-key="1">1</button>
+        <button class="lock-key" data-key="2">2</button>
+        <button class="lock-key" data-key="3">3</button>
+        <button class="lock-key" data-key="4">4</button>
+        <button class="lock-key" data-key="5">5</button>
+        <button class="lock-key" data-key="6">6</button>
+        <button class="lock-key" data-key="7">7</button>
+        <button class="lock-key" data-key="8">8</button>
+        <button class="lock-key" data-key="9">9</button>
+        <span></span>
+        <button class="lock-key" data-key="0">0</button>
+        <button class="lock-key" id="diaryLockBackspaceBtn" data-key="back">⌫</button>
+      </div>
+      <button class="ghost-btn diary-lock-forgot-btn" id="diaryLockForgotBtn">Forgot lock?</button>
+      <button class="ghost-btn diary-lock-cancel-btn" id="diaryLockCancelBtn">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ============ FORGOT LOCK — SECURITY QUESTION SHEET ============ -->
+  <div class="sheet-backdrop" id="forgotLockSheetBackdrop" hidden></div>
+  <div class="bottom-sheet" id="forgotLockSheet" hidden>
+    <div class="sheet-handle"></div>
+    <h3 class="sheet-title">Forgot lock</h3>
+    <p class="sheet-sub" id="forgotLockQuestionText">Answer your security question</p>
+    <input type="text" class="create-input" id="forgotLockAnswerInput" placeholder="Your answer" maxlength="40">
+    <button class="solid-btn wide" id="forgotLockSubmitBtn">Unlock diary</button>
+    <p class="lock-error" id="forgotLockError" hidden>That's not the right answer</p>
+  </div>
+
   <!-- ============ SET PIN SHEET (from Settings) ============ -->
   <div class="sheet-backdrop" id="setPinSheetBackdrop" hidden></div>
   <div class="bottom-sheet" id="setPinSheet" hidden>
@@ -370,6 +386,30 @@
     <p class="sheet-sub" id="setPinSub">You'll need this to open the app</p>
     <input type="password" class="create-input" id="setPinInput" placeholder="••••" maxlength="4" inputmode="numeric" pattern="[0-9]*">
     <button class="solid-btn wide" id="setPinSaveBtn">Save PIN</button>
+  </div>
+
+  <!-- ============ DIARY LOCK MANAGE SHEET (set/change/remove from Settings) ============ -->
+  <div class="sheet-backdrop" id="diaryLockManageSheetBackdrop" hidden></div>
+  <div class="bottom-sheet" id="diaryLockManageSheet" hidden>
+    <div class="sheet-handle"></div>
+    <h3 class="sheet-title" id="diaryLockManageTitle">Lock this diary</h3>
+    <div class="lock-type-options" id="manageLockTypeOptions">
+      <button class="lock-type-chip" data-locktype="none">🔓 No lock</button>
+      <button class="lock-type-chip active" data-locktype="pin">🔢 PIN</button>
+      <button class="lock-type-chip" data-locktype="pattern">🔣 Pattern</button>
+    </div>
+    <div class="create-lock-fields" id="manageLockFields">
+      <input type="password" class="create-input" id="manageLockSecretInput" placeholder="4-digit PIN" maxlength="4" inputmode="numeric" pattern="[0-9]*">
+      <label class="create-label">Security question <span class="edit-field-optional">(for Forgot lock)</span></label>
+      <select class="create-input" id="manageLockQuestionSelect">
+        <option value="sport">What is your favourite sport?</option>
+        <option value="dob">What is your date of birth?</option>
+        <option value="pet">What is your pet's name?</option>
+        <option value="city">Which city were you born in?</option>
+      </select>
+      <input type="text" class="create-input" id="manageLockAnswerInput" placeholder="Your answer" maxlength="40">
+    </div>
+    <button class="solid-btn wide" id="manageLockSaveBtn">Save lock</button>
   </div>
 
   <!-- ============ SIGNATURE EDIT SHEET ============ -->
@@ -728,6 +768,9 @@
         </label>
       </div>
       <button class="settings-link-btn" id="changePinBtn" hidden>Change PIN</button>
+
+      <p class="settings-group-label">Diary locks</p>
+      <div class="diary-lock-manage-list" id="diaryLockManageList"></div>
 
       <p class="settings-group-label">Your data</p>
       <button class="settings-link-btn" id="exportAllBtn">Export all diaries as text</button>
