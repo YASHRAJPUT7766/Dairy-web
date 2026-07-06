@@ -1200,3 +1200,87 @@ input, textarea { font-family: inherit; }
 html[data-accent="rose"] { --amber: #c06a5e; --amber-soft: rgba(192,106,94,0.16); }
 html[data-accent="teal"] { --amber: #3f8f82; --amber-soft: rgba(63,143,130,0.16); }
 html[data-accent="lavender"] { --amber: #8a7dc4; --amber-soft: rgba(138,125,196,0.16); }
+
+/* ============ NEW FEATURES: toolbar tweaks, bookmark, tags, TTS, photo, PIN lock, backup ============ */
+
+.fs-toolbar { padding: 10px 10px; }
+.fs-toolbar-left { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.fs-toolbar-actions { display: flex; gap: 0; overflow-x: auto; scrollbar-width: none; max-width: 62vw; }
+.fs-toolbar-actions::-webkit-scrollbar { display: none; }
+.fs-tool-btn { flex-shrink: 0; padding: 4px 6px; }
+
+.fs-bookmark-btn {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--ink-dark-text); opacity: 0.55; transition: all 0.2s var(--ease); flex-shrink: 0;
+}
+.fs-bookmark-btn.active { color: var(--amber); opacity: 1; }
+.fs-bookmark-btn.active svg { fill: var(--amber); }
+
+.fs-date-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.fs-date-row .fs-date { margin-bottom: 0; }
+.fs-tts-btn {
+  width: 26px; height: 26px; border-radius: 50%; background: rgba(43,36,22,0.06); color: var(--ink-dark-text);
+  display: grid; place-items: center; flex-shrink: 0; transition: all 0.2s var(--ease);
+}
+.fs-tts-btn.speaking { background: var(--amber); color: #fff; animation: breathe 1.4s ease-in-out infinite; }
+
+.fs-tags-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.fs-tags-row:empty { display: none; margin: 0; }
+.page-tag-pill {
+  font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 100px;
+  background: var(--amber-soft); color: var(--amber); display: inline-flex; align-items: center; gap: 4px;
+}
+.page-tag-pill button { font-size: 12px; line-height: 1; opacity: 0.7; }
+
+.tag-options { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.tag-chip {
+  font-size: 12.5px; font-weight: 600; padding: 8px 14px; border-radius: 100px;
+  background: var(--panel); border: 1.4px solid var(--panel-border); color: var(--text-mid);
+  transition: all 0.2s var(--ease);
+}
+.tag-chip.active { background: var(--amber); border-color: var(--amber); color: #fff; }
+.tag-custom-row { display: flex; gap: 8px; align-items: center; }
+.tag-custom-row .create-input { flex: 1; margin-bottom: 0; }
+
+/* bookmarks filter chip on History screen */
+.bookmarks-filter-chip {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600;
+  color: var(--text-mid); padding: 7px 14px; border-radius: 100px; border: 1.4px solid var(--panel-border);
+  margin: 10px 0 14px; transition: all 0.2s var(--ease);
+}
+.bookmarks-filter-chip.active { background: var(--amber); border-color: var(--amber); color: #fff; }
+
+/* ============ APP LOCK / PIN SCREEN ============ */
+.lock-screen {
+  position: fixed; inset: 0; z-index: 500; background: linear-gradient(180deg, var(--bg), var(--panel));
+  display: flex; align-items: center; justify-content: center;
+}
+.lock-inner { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px; max-width: 340px; width: 100%; }
+.lock-icon { font-size: 34px; margin-bottom: 6px; }
+.lock-title { font-family: var(--serif); font-size: 19px; color: var(--text-hi); font-weight: 600; }
+.lock-sub { font-size: 12.5px; color: var(--text-low); margin-bottom: 14px; }
+.lock-dots { display: flex; gap: 14px; margin-bottom: 10px; }
+.lock-dot { width: 13px; height: 13px; border-radius: 50%; border: 1.6px solid var(--panel-border); transition: all 0.15s var(--ease); }
+.lock-dot.filled { background: var(--amber); border-color: var(--amber); }
+.lock-dot.shake-error { animation: lockShake 0.4s; border-color: var(--danger); }
+@keyframes lockShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.lock-error { font-size: 12px; color: var(--danger); margin-bottom: 10px; height: 14px; }
+.lock-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 10px; width: 100%; max-width: 260px; }
+.lock-key {
+  aspect-ratio: 1/1; border-radius: 50%; background: var(--panel); border: 1px solid var(--panel-border);
+  font-size: 20px; font-weight: 600; color: var(--text-hi); display: grid; place-items: center;
+  transition: background 0.15s var(--ease);
+}
+.lock-key:active { background: var(--amber-soft); }
+
+/* photo attach — reuses .placed-sticker positioning system but with rounded corners */
+.placed-photo { border-radius: 10px; overflow: hidden; }
+.placed-photo img { border-radius: 10px; object-fit: cover; }
+
+.template-options { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.template-chip {
+  font-size: 12.5px; font-weight: 600; padding: 8px 14px; border-radius: 100px;
+  background: var(--panel); border: 1.4px solid var(--panel-border); color: var(--text-mid);
+  transition: all 0.2s var(--ease);
+}
+.template-chip.active { background: var(--amber); border-color: var(--amber); color: #fff; }
