@@ -574,14 +574,28 @@
       return;
     }
 
-    el.diaryGrid.innerHTML = diaries.map(d => `
+    el.diaryGrid.innerHTML = diaries.map(d => {
+      const stickerHtml = (Array.isArray(d.coverStickers) ? d.coverStickers : []).map(st => {
+        const src = STICKER_LIBRARY[st.key] || '';
+        if (!src) return '';
+        const w = st.sizePct || 20;
+        return `<img src="${src}" alt="" style="left:${st.x}%;top:${st.y}%;width:${w}%;aspect-ratio:1/1;">`;
+      }).join('');
+
+      return `
       <div class="diary-grid-card" data-id="${d.id}" data-cover-theme="${d.coverTheme || 'classic'}">
-        ${d.lock ? '<span class="diary-grid-card-lock">🔒</span>' : ''}
-        <span class="diary-grid-card-mark">◐</span>
-        <span class="diary-grid-card-title">${escapeHtml(d.name)}</span>
-        <span class="diary-grid-card-meta">${d.pages.length} ${d.pages.length === 1 ? 'page' : 'pages'}</span>
+        ${d.lock ? `<span class="diary-grid-card-lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>` : ''}
+        <div class="diary-grid-card-stickers">${stickerHtml}</div>
+        <div class="diary-grid-card-inner">
+          <span class="diary-grid-card-mark">◐</span>
+          <span class="diary-grid-card-title">${escapeHtml(d.name)}</span>
+          <span class="diary-grid-card-rule"></span>
+          <span class="diary-grid-card-meta">${d.pages.length} ${d.pages.length === 1 ? 'page' : 'pages'}</span>
+        </div>
+        <span class="diary-grid-card-signature">${escapeHtml(d.signature || 'made by Yash')}</span>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     el.diaryGrid.querySelectorAll('.diary-grid-card').forEach(card => {
       card.addEventListener('click', () => openDiaryRespectingLock(card.dataset.id));
@@ -662,8 +676,8 @@
     else if (name === 'settings') openSettingsScreen();
     else if (name === 'create') openCreateScreen();
     else if (name === 'history') openHistoryScreen();
-    else if (name === 'cover') openCoverScreen(activeDiaryId);
-    else if (name === 'book') openBookScreen();
+    else if (name === 'cover') openDiaryRespectingLock(activeDiaryId);
+    else if (name === 'book') { if (diaries.some(d => d.id === activeDiaryId) && (!getDiary(activeDiaryId).lock || unlockedThisSession.has(activeDiaryId))) openBookScreen(); else initHome(); }
     else if (name === 'profile') openProfileScreen();
     else if (name === 'insights') openInsightsScreen();
     else initHome();
@@ -706,8 +720,8 @@
     }
     if (el.createLockFields) el.createLockFields.hidden = type === 'none';
     if (el.createLockSecretInput) {
-      el.createLockSecretInput.placeholder = type === 'pattern' ? 'Enter a pattern (e.g. 2-1-4-7)' : '4-digit PIN';
-      el.createLockSecretInput.maxLength = type === 'pattern' ? 20 : 4;
+      el.createLockSecretInput.placeholder = type === 'pattern' ? 'Enter a password' : '4-digit PIN';
+      el.createLockSecretInput.maxLength = type === 'pattern' ? 40 : 4;
       el.createLockSecretInput.inputMode = type === 'pattern' ? 'text' : 'numeric';
     }
   }
@@ -737,7 +751,7 @@
       const secret = (el.createLockSecretInput.value || '').trim();
       const answer = (el.createLockAnswerInput.value || '').trim();
       if (createLockType === 'pin' && !/^\d{4}$/.test(secret)) { showToast('Enter exactly 4 digits for PIN'); el.createLockSecretInput.focus(); return; }
-      if (createLockType === 'pattern' && secret.length < 2) { showToast('Enter a pattern'); el.createLockSecretInput.focus(); return; }
+      if (createLockType === 'pattern' && secret.length < 4) { showToast('Enter a password (at least 4 characters)'); el.createLockSecretInput.focus(); return; }
       if (!answer) { showToast('Enter an answer for your security question'); el.createLockAnswerInput.focus(); return; }
       lock = { type: createLockType, secret, question: el.createLockQuestionSelect.value, answer: answer.toLowerCase() };
     }
@@ -758,6 +772,7 @@
     persist();
 
     activeDiaryId = diary.id;
+    if (lock) unlockedThisSession.add(diary.id);
     openCoverScreen(diary.id);
   }
 
@@ -2887,6 +2902,7 @@
   };
 
   let diaryLockTargetId = null;   // diary awaiting unlock
+  const unlockedThisSession = new Set(); // diary ids the user has successfully unlocked since app launch
   let diaryLockEntered = '';      // pin digits entered so far (pin mode)
 
   // any diary's correct secret (pin/pattern) or correct security answer unlocks the
@@ -2903,7 +2919,7 @@
   function openDiaryRespectingLock(diaryId) {
     const diary = getDiary(diaryId);
     if (!diary) return;
-    if (!diary.lock) {
+    if (!diary.lock || unlockedThisSession.has(diaryId)) {
       openCoverScreen(diaryId);
       return;
     }
@@ -2919,7 +2935,7 @@
     el.diaryLockSub.textContent = `"${diary.name}" is locked`;
 
     const isPattern = diary.lock.type === 'pattern';
-    el.diaryLockTitle.textContent = isPattern ? 'Enter pattern' : 'Enter PIN';
+    el.diaryLockTitle.textContent = isPattern ? 'Enter password' : 'Enter PIN';
     el.diaryLockKeypad.hidden = isPattern;
     el.diaryLockDots.hidden = isPattern;
     el.diaryLockPatternInput.hidden = !isPattern;
@@ -2949,6 +2965,7 @@
     // exact match against this diary's own lock OR any diary's lock secret (universal override)
     if (inputSecret === diary.lock.secret || checkAnyDiaryUnlockMatch(inputSecret)) {
       const id = diaryLockTargetId;
+      unlockedThisSession.add(id);
       hideDiaryLockScreen();
       openCoverScreen(id);
     } else {
@@ -3010,6 +3027,7 @@
     // correct answer against this diary's own question OR any diary's answer (universal override)
     if (answer.toLowerCase() === (diary.lock.answer || '').toLowerCase() || checkAnyDiaryUnlockMatch(answer, { asAnswer: true })) {
       const id = diaryLockTargetId;
+      unlockedThisSession.add(id);
       closeForgotLockSheet();
       hideDiaryLockScreen();
       showToast('Diary unlocked');
@@ -3031,7 +3049,7 @@
       <div class="diary-lock-manage-row" data-id="${d.id}">
         <div>
           <div class="diary-lock-manage-name">${escapeHtml(d.name)}</div>
-          <div class="diary-lock-manage-status">${d.lock ? (d.lock.type === 'pattern' ? '🔒 Pattern lock' : '🔒 PIN lock') : 'No lock'}</div>
+          <div class="diary-lock-manage-status">${d.lock ? `<svg class="inline-lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> ${d.lock.type === 'pattern' ? 'Password lock' : 'PIN lock'}` : 'No lock'}</div>
         </div>
         <button class="diary-lock-manage-btn" data-id="${d.id}">${d.lock ? 'Change' : 'Add lock'}</button>
       </div>
@@ -3050,8 +3068,8 @@
       btn.classList.toggle('active', btn.dataset.locktype === type);
     });
     el.manageLockFields.hidden = type === 'none';
-    el.manageLockSecretInput.placeholder = type === 'pattern' ? 'Enter a pattern (e.g. 2-1-4-7)' : '4-digit PIN';
-    el.manageLockSecretInput.maxLength = type === 'pattern' ? 20 : 4;
+    el.manageLockSecretInput.placeholder = type === 'pattern' ? 'Enter a password' : '4-digit PIN';
+    el.manageLockSecretInput.maxLength = type === 'pattern' ? 40 : 4;
     el.manageLockSecretInput.inputMode = type === 'pattern' ? 'text' : 'numeric';
   }
 
@@ -3084,6 +3102,7 @@
 
     if (manageLockType === 'none') {
       diary.lock = null;
+      unlockedThisSession.delete(diary.id);
       persist();
       renderDiaryLockManageList();
       renderDiaryGrid();
@@ -3095,10 +3114,11 @@
     const secret = (el.manageLockSecretInput.value || '').trim();
     const answer = (el.manageLockAnswerInput.value || '').trim();
     if (manageLockType === 'pin' && !/^\d{4}$/.test(secret)) { showToast('Enter exactly 4 digits for PIN'); return; }
-    if (manageLockType === 'pattern' && secret.length < 2) { showToast('Enter a pattern'); return; }
+    if (manageLockType === 'pattern' && secret.length < 4) { showToast('Enter a password (at least 4 characters)'); return; }
     if (!answer) { showToast('Enter an answer for your security question'); return; }
 
     diary.lock = { type: manageLockType, secret, question: el.manageLockQuestionSelect.value, answer: answer.toLowerCase() };
+    unlockedThisSession.add(diary.id);
     persist();
     renderDiaryLockManageList();
     renderDiaryGrid();
