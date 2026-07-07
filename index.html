@@ -167,12 +167,21 @@
 
       <label class="create-label">Lock this diary <span class="edit-field-optional">(optional)</span></label>
       <div class="lock-type-options" id="createLockTypeOptions">
-        <button class="lock-type-chip active" data-locktype="none">🔓 No lock</button>
-        <button class="lock-type-chip" data-locktype="pin">🔢 PIN</button>
-        <button class="lock-type-chip" data-locktype="pattern">🔣 Pattern</button>
+        <button class="lock-type-chip active" data-locktype="none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 7.4-2"/></svg>
+          <span>No lock</span>
+        </button>
+        <button class="lock-type-chip" data-locktype="pin">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="8" cy="12.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="12.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="12.5" r="1.1" fill="currentColor" stroke="none"/></svg>
+          <span>PIN</span>
+        </button>
+        <button class="lock-type-chip" data-locktype="pattern">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          <span>Password</span>
+        </button>
       </div>
       <div class="create-lock-fields" id="createLockFields" hidden>
-        <input type="text" class="create-input" id="createLockSecretInput" placeholder="4-digit PIN" maxlength="4" inputmode="numeric">
+        <input type="password" class="create-input" id="createLockSecretInput" placeholder="4-digit PIN" maxlength="4" inputmode="numeric" autocomplete="new-password">
         <label class="create-label">Security question <span class="edit-field-optional">(for Forgot lock)</span></label>
         <select class="create-input" id="createLockQuestionSelect">
           <option value="sport">What is your favourite sport?</option>
@@ -313,7 +322,7 @@
   <!-- ============ APP LOCK / PIN SCREEN ============ -->
   <div class="lock-screen" id="lockScreen" hidden>
     <div class="lock-inner">
-      <span class="lock-icon">🔒</span>
+      <span class="lock-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
       <p class="lock-title" id="lockTitle">Enter your PIN</p>
       <p class="lock-sub" id="lockSub">Your diary is private</p>
       <div class="lock-dots" id="lockDots">
@@ -340,13 +349,13 @@
   <!-- ============ DIARY LOCK SCREEN (per-diary, shown before opening a locked diary) ============ -->
   <div class="lock-screen" id="diaryLockScreen" hidden>
     <div class="lock-inner">
-      <span class="lock-icon">🔒</span>
+      <span class="lock-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
       <p class="lock-title" id="diaryLockTitle">Enter PIN</p>
       <p class="lock-sub" id="diaryLockSub">This diary is locked</p>
       <div class="lock-dots" id="diaryLockDots">
         <span class="lock-dot"></span><span class="lock-dot"></span><span class="lock-dot"></span><span class="lock-dot"></span>
       </div>
-      <input type="text" class="create-input diary-lock-pattern-input" id="diaryLockPatternInput" placeholder="Enter pattern" hidden maxlength="20">
+      <input type="password" class="create-input diary-lock-pattern-input" id="diaryLockPatternInput" placeholder="Enter password" hidden maxlength="40" autocomplete="current-password">
       <p class="lock-error" id="diaryLockError" hidden>Incorrect, try again</p>
       <div class="lock-keypad" id="diaryLockKeypad">
         <button class="lock-key" data-key="1">1</button>
@@ -394,12 +403,21 @@
     <div class="sheet-handle"></div>
     <h3 class="sheet-title" id="diaryLockManageTitle">Lock this diary</h3>
     <div class="lock-type-options" id="manageLockTypeOptions">
-      <button class="lock-type-chip" data-locktype="none">🔓 No lock</button>
-      <button class="lock-type-chip active" data-locktype="pin">🔢 PIN</button>
-      <button class="lock-type-chip" data-locktype="pattern">🔣 Pattern</button>
+      <button class="lock-type-chip" data-locktype="none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 7.4-2"/></svg>
+        <span>No lock</span>
+      </button>
+      <button class="lock-type-chip active" data-locktype="pin">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="8" cy="12.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="12.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="12.5" r="1.1" fill="currentColor" stroke="none"/></svg>
+        <span>PIN</span>
+      </button>
+      <button class="lock-type-chip" data-locktype="pattern">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <span>Password</span>
+      </button>
     </div>
     <div class="create-lock-fields" id="manageLockFields">
-      <input type="text" class="create-input" id="manageLockSecretInput" placeholder="4-digit PIN" maxlength="4" inputmode="numeric">
+      <input type="password" class="create-input" id="manageLockSecretInput" placeholder="4-digit PIN" maxlength="4" inputmode="numeric" autocomplete="new-password">
       <label class="create-label">Security question <span class="edit-field-optional">(for Forgot lock)</span></label>
       <select class="create-input" id="manageLockQuestionSelect">
         <option value="sport">What is your favourite sport?</option>
