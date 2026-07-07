@@ -147,6 +147,17 @@
     lockError: $('lockError'), lockKeypad: $('lockKeypad'), lockBackspaceBtn: $('lockBackspaceBtn'),
     setPinSheetBackdrop: $('setPinSheetBackdrop'), setPinSheet: $('setPinSheet'), setPinTitle: $('setPinTitle'),
     setPinSub: $('setPinSub'), setPinInput: $('setPinInput'), setPinSaveBtn: $('setPinSaveBtn'),
+    currentPinLabel: $('currentPinLabel'), currentPinInput: $('currentPinInput'), currentPinError: $('currentPinError'),
+    newPinLabel: $('newPinLabel'),
+
+    appLockForgotBtn: $('appLockForgotBtn'),
+    appForgotPinSheetBackdrop: $('appForgotPinSheetBackdrop'), appForgotPinSheet: $('appForgotPinSheet'),
+    appForgotPinQuestionText: $('appForgotPinQuestionText'), appForgotPinAnswerInput: $('appForgotPinAnswerInput'),
+    appForgotPinSubmitBtn: $('appForgotPinSubmitBtn'), appForgotPinError: $('appForgotPinError'),
+
+    appPinQuestionSheetBackdrop: $('appPinQuestionSheetBackdrop'), appPinQuestionSheet: $('appPinQuestionSheet'),
+    appPinQuestionSelect: $('appPinQuestionSelect'), appPinAnswerInput: $('appPinAnswerInput'),
+    appPinQuestionSaveBtn: $('appPinQuestionSaveBtn'),
 
     deleteConfirm: $('deleteConfirm'), cancelDeleteBtn: $('cancelDeleteBtn'), confirmDeleteBtn: $('confirmDeleteBtn'),
     toast: $('toast'),
@@ -277,6 +288,8 @@
     if (settings.soundOn === undefined) settings.soundOn = false;
     if (settings.appLock === undefined) settings.appLock = false;
     if (settings.pin === undefined) settings.pin = '';
+    if (settings.pinQuestion === undefined) settings.pinQuestion = '';
+    if (settings.pinAnswer === undefined) settings.pinAnswer = '';
   }
 
   // ---------- profile helpers (name / photo shown across Home, Profile, Insights, Settings) ----------
@@ -578,7 +591,7 @@
     if (!el.diaryGrid) return;
     el.homeHint.textContent = diaries.length === 0 ? 'No diary yet' : diaries.length === 1 ? 'You have 1 diary' : `You have ${diaries.length} diaries`;
 
-    el.diaryGrid.className = 'diary-grid' + (diaries.length === 2 ? ' count-2' : diaries.length >= 3 ? ' count-3plus' : '');
+    el.diaryGrid.className = 'diary-grid';
 
     if (!diaries.length) {
       el.diaryGrid.innerHTML = `
@@ -591,8 +604,10 @@
       return;
     }
 
+    // Each card mirrors the diary's own cover theme (colour) and name, closed-book style,
+    // 3 per row like a shelf.
     el.diaryGrid.innerHTML = diaries.map(d => `
-      <div class="diary-grid-card" data-id="${d.id}">
+      <div class="diary-grid-card" data-id="${d.id}" data-cover-theme="${d.coverTheme || 'classic'}">
         ${d.lock ? '<span class="diary-grid-card-lock">🔒</span>' : ''}
         <span class="diary-grid-card-mark">◐</span>
         <span class="diary-grid-card-title">${escapeHtml(d.name)}</span>
@@ -726,6 +741,7 @@
       el.createLockSecretInput.placeholder = type === 'pattern' ? 'Enter a pattern (e.g. 2-1-4-7)' : '4-digit PIN';
       el.createLockSecretInput.maxLength = type === 'pattern' ? 20 : 4;
       el.createLockSecretInput.inputMode = type === 'pattern' ? 'text' : 'numeric';
+      el.createLockSecretInput.type = type === 'pattern' ? 'text' : 'password';
     }
   }
 
@@ -2791,14 +2807,22 @@
 
   function openSetPinSheet(isChange) {
     el.setPinTitle.textContent = isChange ? 'Change your PIN' : 'Set a 4-digit PIN';
-    el.setPinSub.textContent = isChange ? 'Enter a new 4-digit PIN' : "You'll need this to open the app";
+    el.setPinSub.textContent = isChange ? 'Confirm your current PIN, then choose a new one' : "You'll need this to open the app";
     el.setPinInput.value = '';
+    if (el.currentPinInput) el.currentPinInput.value = '';
+    if (el.currentPinError) el.currentPinError.hidden = true;
+    // only ask for the current PIN when changing an existing one — setting a
+    // PIN for the first time has nothing to verify against
+    const needsCurrent = isChange && !!settings.pin;
+    if (el.currentPinLabel) el.currentPinLabel.hidden = !needsCurrent;
+    if (el.currentPinInput) el.currentPinInput.hidden = !needsCurrent;
+    if (el.newPinLabel) el.newPinLabel.hidden = !needsCurrent; // unlabelled single field when first-time
     el.setPinSheetBackdrop.hidden = false;
     el.setPinSheet.hidden = false;
     requestAnimationFrame(() => {
       el.setPinSheetBackdrop.classList.add('show');
       el.setPinSheet.classList.add('show');
-      el.setPinInput.focus();
+      (needsCurrent ? el.currentPinInput : el.setPinInput).focus();
     });
   }
 
@@ -2809,8 +2833,20 @@
   }
 
   function saveNewPin() {
+    const needsCurrent = !el.currentPinInput.hidden;
+    if (needsCurrent) {
+      const current = el.currentPinInput.value.trim();
+      if (current !== settings.pin) {
+        el.currentPinError.hidden = false;
+        el.currentPinInput.focus();
+        return;
+      }
+      el.currentPinError.hidden = true;
+    }
     const pin = el.setPinInput.value.trim();
     if (!/^\d{4}$/.test(pin)) { showToast('Enter exactly 4 digits'); return; }
+
+    const isFirstTime = !settings.appLock;
     settings.pin = pin;
     settings.appLock = true;
     persistSettings();
@@ -2819,6 +2855,40 @@
     if (el.appLockRowSub) el.appLockRowSub.textContent = 'PIN required to open the app';
     closeSetPinSheet();
     showToast('PIN saved');
+
+    // first time the app lock is turned on, also collect a security question
+    // so "Forgot PIN?" on the lock screen has something to check against
+    if (isFirstTime) openAppPinQuestionSheet();
+  }
+
+  // ---- security question tied to the app-level PIN (used by "Forgot PIN?") ----
+
+  function openAppPinQuestionSheet() {
+    if (!el.appPinQuestionSheet) return;
+    el.appPinQuestionSelect.value = settings.pinQuestion || 'sport';
+    el.appPinAnswerInput.value = '';
+    el.appPinQuestionSheetBackdrop.hidden = false;
+    el.appPinQuestionSheet.hidden = false;
+    requestAnimationFrame(() => {
+      el.appPinQuestionSheetBackdrop.classList.add('show');
+      el.appPinQuestionSheet.classList.add('show');
+    });
+  }
+
+  function closeAppPinQuestionSheet() {
+    el.appPinQuestionSheetBackdrop.classList.remove('show');
+    el.appPinQuestionSheet.classList.remove('show');
+    setTimeout(() => { el.appPinQuestionSheetBackdrop.hidden = true; el.appPinQuestionSheet.hidden = true; }, 350);
+  }
+
+  function saveAppPinQuestion() {
+    const answer = (el.appPinAnswerInput.value || '').trim();
+    if (!answer) { showToast('Enter an answer for your security question'); return; }
+    settings.pinQuestion = el.appPinQuestionSelect.value;
+    settings.pinAnswer = answer.toLowerCase();
+    persistSettings();
+    closeAppPinQuestionSheet();
+    showToast('Security question saved');
   }
 
   // ---- lock screen shown at launch when app lock is on ----
@@ -2863,6 +2933,49 @@
         }
       }, 150);
     }
+  }
+
+  // ---- forgot app PIN — answer the saved security question to reset it ----
+
+  function openAppForgotPinSheet() {
+    if (!el.appForgotPinSheet) return;
+    if (!settings.pinQuestion || !settings.pinAnswer) {
+      showToast('No security question was set up for this PIN');
+      return;
+    }
+    el.appForgotPinQuestionText.textContent = SECURITY_QUESTIONS[settings.pinQuestion] || 'Answer your security question';
+    el.appForgotPinAnswerInput.value = '';
+    el.appForgotPinError.hidden = true;
+    el.appForgotPinSheetBackdrop.hidden = false;
+    el.appForgotPinSheet.hidden = false;
+    requestAnimationFrame(() => {
+      el.appForgotPinSheetBackdrop.classList.add('show');
+      el.appForgotPinSheet.classList.add('show');
+      el.appForgotPinAnswerInput.focus();
+    });
+  }
+
+  function closeAppForgotPinSheet() {
+    el.appForgotPinSheetBackdrop.classList.remove('show');
+    el.appForgotPinSheet.classList.remove('show');
+    setTimeout(() => { el.appForgotPinSheetBackdrop.hidden = true; el.appForgotPinSheet.hidden = true; }, 350);
+  }
+
+  function submitAppForgotPinAnswer() {
+    const answer = (el.appForgotPinAnswerInput.value || '').trim().toLowerCase();
+    if (!answer || answer !== (settings.pinAnswer || '')) {
+      el.appForgotPinError.hidden = false;
+      return;
+    }
+    closeAppForgotPinSheet();
+    el.lockScreen.hidden = true;
+    // correct answer removes the old PIN and immediately asks for a fresh one,
+    // rather than silently unlocking with the old (forgotten) PIN
+    settings.pin = '';
+    persistSettings();
+    initHome();
+    showToast('PIN reset — set a new one');
+    openSetPinSheet(false);
   }
 
   // ============ PER-DIARY LOCK ============
@@ -3040,6 +3153,10 @@
     el.manageLockFields.hidden = type === 'none';
     el.manageLockSecretInput.placeholder = type === 'pattern' ? 'Enter a pattern (e.g. 2-1-4-7)' : '4-digit PIN';
     el.manageLockSecretInput.maxLength = type === 'pattern' ? 20 : 4;
+    // pattern locks are free-form text, not digits-only — without this the phone
+    // keyboard stays numeric and letters/symbols can't be typed
+    el.manageLockSecretInput.inputMode = type === 'pattern' ? 'text' : 'numeric';
+    el.manageLockSecretInput.type = type === 'pattern' ? 'text' : 'password';
   }
 
   function openDiaryLockManageSheet(diaryId) {
@@ -3096,7 +3213,7 @@
   // ============ FULL JSON BACKUP / RESTORE ============
 
   function downloadJsonBackup() {
-    const payload = { app: 'voice-diary', version: 2, exportedAt: new Date().toISOString(), diaries, settings: { ...settings, pin: undefined } };
+    const payload = { app: 'voice-diary', version: 2, exportedAt: new Date().toISOString(), diaries, settings: { ...settings, pin: undefined, pinAnswer: undefined } };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -3472,6 +3589,8 @@
         } else {
           settings.appLock = false;
           settings.pin = '';
+          settings.pinQuestion = '';
+          settings.pinAnswer = '';
           persistSettings();
           if (el.changePinBtn) el.changePinBtn.hidden = true;
           if (el.appLockRowSub) el.appLockRowSub.textContent = 'Require a PIN to open the app';
@@ -3482,6 +3601,21 @@
     if (el.changePinBtn) el.changePinBtn.addEventListener('click', () => openSetPinSheet(true));
     if (el.setPinSaveBtn) el.setPinSaveBtn.addEventListener('click', saveNewPin);
     if (el.setPinSheetBackdrop) el.setPinSheetBackdrop.addEventListener('click', closeSetPinSheet);
+    if (el.currentPinInput) {
+      el.currentPinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') el.setPinInput.focus(); });
+      el.currentPinInput.addEventListener('input', () => { el.currentPinError.hidden = true; });
+    }
+    if (el.setPinInput) {
+      el.setPinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveNewPin(); });
+    }
+    if (el.appLockForgotBtn) el.appLockForgotBtn.addEventListener('click', openAppForgotPinSheet);
+    if (el.appForgotPinSheetBackdrop) el.appForgotPinSheetBackdrop.addEventListener('click', closeAppForgotPinSheet);
+    if (el.appForgotPinSubmitBtn) el.appForgotPinSubmitBtn.addEventListener('click', submitAppForgotPinAnswer);
+    if (el.appForgotPinAnswerInput) {
+      el.appForgotPinAnswerInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAppForgotPinAnswer(); });
+    }
+    if (el.appPinQuestionSheetBackdrop) el.appPinQuestionSheetBackdrop.addEventListener('click', closeAppPinQuestionSheet);
+    if (el.appPinQuestionSaveBtn) el.appPinQuestionSaveBtn.addEventListener('click', saveAppPinQuestion);
     if (el.backupJsonBtn) el.backupJsonBtn.addEventListener('click', downloadJsonBackup);
     if (el.restoreJsonBtn) el.restoreJsonBtn.addEventListener('click', () => { el.restoreFileInput.value = ''; el.restoreFileInput.click(); });
     if (el.restoreFileInput) el.restoreFileInput.addEventListener('change', () => restoreFromJsonFile(el.restoreFileInput.files[0]));
