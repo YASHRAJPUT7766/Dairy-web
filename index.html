@@ -157,6 +157,24 @@
     </header>
 
     <div class="create-body">
+      <label class="create-label">Lock this diary <span class="edit-field-optional">(optional)</span></label>
+      <div class="lock-type-options" id="createLockTypeOptions">
+        <button class="lock-type-chip active" data-locktype="none">🔓 No lock</button>
+        <button class="lock-type-chip" data-locktype="pin">🔢 PIN</button>
+        <button class="lock-type-chip" data-locktype="pattern">🔣 Pattern</button>
+      </div>
+      <div class="create-lock-fields" id="createLockFields" hidden>
+        <input type="password" class="create-input" id="createLockSecretInput" placeholder="4-digit PIN" maxlength="4" inputmode="numeric">
+        <label class="create-label">Security question <span class="edit-field-optional">(for Forgot lock)</span></label>
+        <select class="create-input" id="createLockQuestionSelect">
+          <option value="sport">What is your favourite sport?</option>
+          <option value="dob">What is your date of birth?</option>
+          <option value="pet">What is your pet's name?</option>
+          <option value="city">Which city were you born in?</option>
+        </select>
+        <input type="text" class="create-input" id="createLockAnswerInput" placeholder="Your answer" maxlength="40">
+      </div>
+
       <label class="create-label">Template</label>
       <div class="template-options" id="templateOptions">
         <button class="template-chip active" data-template="plain">📔 Plain</button>
@@ -182,24 +200,6 @@
         </button>
       </div>
       <p class="mic-status" id="createMicStatus" hidden>Listening...</p>
-
-      <label class="create-label">Lock this diary <span class="edit-field-optional">(optional)</span></label>
-      <div class="lock-type-options" id="createLockTypeOptions">
-        <button class="lock-type-chip active" data-locktype="none">🔓 No lock</button>
-        <button class="lock-type-chip" data-locktype="pin">🔢 PIN</button>
-        <button class="lock-type-chip" data-locktype="pattern">🔣 Pattern</button>
-      </div>
-      <div class="create-lock-fields" id="createLockFields" hidden>
-        <input type="password" class="create-input" id="createLockSecretInput" placeholder="4-digit PIN" maxlength="4" inputmode="numeric" pattern="[0-9]*">
-        <label class="create-label">Security question <span class="edit-field-optional">(for Forgot lock)</span></label>
-        <select class="create-input" id="createLockQuestionSelect">
-          <option value="sport">What is your favourite sport?</option>
-          <option value="dob">What is your date of birth?</option>
-          <option value="pet">What is your pet's name?</option>
-          <option value="city">Which city were you born in?</option>
-        </select>
-        <input type="text" class="create-input" id="createLockAnswerInput" placeholder="Your answer" maxlength="40">
-      </div>
 
       <button class="solid-btn wide" id="confirmCreateBtn">Create diary</button>
     </div>
@@ -334,10 +334,36 @@
         <button class="lock-key" data-key="0">0</button>
         <button class="lock-key" id="lockBackspaceBtn" data-key="back">⌫</button>
       </div>
+      <button class="ghost-btn diary-lock-forgot-btn" id="appLockForgotBtn">Forgot PIN?</button>
     </div>
   </div>
 
-  <!-- ============ DIARY LOCK SCREEN (per-diary, shown before opening a locked diary) ============ -->
+  <!-- ============ FORGOT APP PIN — SECURITY QUESTION SHEET ============ -->
+  <div class="sheet-backdrop" id="appForgotPinSheetBackdrop" hidden></div>
+  <div class="bottom-sheet" id="appForgotPinSheet" hidden>
+    <div class="sheet-handle"></div>
+    <h3 class="sheet-title">Forgot PIN</h3>
+    <p class="sheet-sub" id="appForgotPinQuestionText">Answer your security question</p>
+    <input type="text" class="create-input" id="appForgotPinAnswerInput" placeholder="Your answer" maxlength="40">
+    <button class="solid-btn wide" id="appForgotPinSubmitBtn">Reset PIN</button>
+    <p class="lock-error" id="appForgotPinError" hidden>That's not the right answer</p>
+  </div>
+
+  <!-- ============ SET APP PIN SECURITY QUESTION SHEET (first time app lock is turned on) ============ -->
+  <div class="sheet-backdrop" id="appPinQuestionSheetBackdrop" hidden></div>
+  <div class="bottom-sheet" id="appPinQuestionSheet" hidden>
+    <div class="sheet-handle"></div>
+    <h3 class="sheet-title">Security question</h3>
+    <p class="sheet-sub">Used to reset your PIN if you forget it</p>
+    <select class="create-input" id="appPinQuestionSelect">
+      <option value="sport">What is your favourite sport?</option>
+      <option value="dob">What is your date of birth?</option>
+      <option value="pet">What is your pet's name?</option>
+      <option value="city">Which city were you born in?</option>
+    </select>
+    <input type="text" class="create-input" id="appPinAnswerInput" placeholder="Your answer" maxlength="40">
+    <button class="solid-btn wide" id="appPinQuestionSaveBtn">Save</button>
+  </div>
   <div class="lock-screen" id="diaryLockScreen" hidden>
     <div class="lock-inner">
       <span class="lock-icon">🔒</span>
@@ -384,7 +410,11 @@
     <div class="sheet-handle"></div>
     <h3 class="sheet-title" id="setPinTitle">Set a 4-digit PIN</h3>
     <p class="sheet-sub" id="setPinSub">You'll need this to open the app</p>
-    <input type="password" class="create-input" id="setPinInput" placeholder="••••" maxlength="4" inputmode="numeric" pattern="[0-9]*">
+    <label class="create-label" id="currentPinLabel" hidden>Current PIN</label>
+    <input type="password" class="create-input" id="currentPinInput" placeholder="Current PIN" maxlength="4" inputmode="numeric" hidden>
+    <p class="lock-error" id="currentPinError" hidden>That PIN isn't right</p>
+    <label class="create-label" id="newPinLabel" hidden>New PIN</label>
+    <input type="password" class="create-input" id="setPinInput" placeholder="••••" maxlength="4" inputmode="numeric">
     <button class="solid-btn wide" id="setPinSaveBtn">Save PIN</button>
   </div>
 
