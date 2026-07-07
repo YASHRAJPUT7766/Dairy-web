@@ -2239,9 +2239,11 @@
       hitEl.addEventListener('click', () => {
         const diaryId = hitEl.dataset.diaryId;
         const pageIdx = Number(hitEl.dataset.pageIdx);
-        activeDiaryId = diaryId;
-        openBookScreen();
-        renderSpread(Math.floor(pageIdx / 2), null);
+        openDiaryRespectingLock(diaryId, () => {
+          activeDiaryId = diaryId;
+          openBookScreen();
+          renderSpread(Math.floor(pageIdx / 2), null);
+        });
       });
     });
   }
@@ -2345,9 +2347,11 @@
       hitEl.addEventListener('click', () => {
         const diaryId = hitEl.dataset.diaryId;
         const pageIdx = Number(hitEl.dataset.pageIdx);
-        activeDiaryId = diaryId;
-        openBookScreen();
-        renderSpread(Math.floor(pageIdx / 2), null);
+        openDiaryRespectingLock(diaryId, () => {
+          activeDiaryId = diaryId;
+          openBookScreen();
+          renderSpread(Math.floor(pageIdx / 2), null);
+        });
       });
     });
   }
@@ -2720,9 +2724,13 @@
 
     el.reflectionsList.querySelectorAll('.reflection-card').forEach(card => {
       card.addEventListener('click', () => {
-        activeDiaryId = card.dataset.diaryId;
-        openBookScreen();
-        renderSpread(Math.floor(Number(card.dataset.pageIdx) / 2), null);
+        const diaryId = card.dataset.diaryId;
+        const pageIdx = Number(card.dataset.pageIdx);
+        openDiaryRespectingLock(diaryId, () => {
+          activeDiaryId = diaryId;
+          openBookScreen();
+          renderSpread(Math.floor(pageIdx / 2), null);
+        });
       });
     });
 
@@ -2793,7 +2801,7 @@
   let setPinMode = 'new'; // 'new' | 'verify'
 
   function openSetPinSheet(isChange) {
-    if (isChange && settings.pin) {
+    if (isChange && settings.appLock && settings.pin && /^\d{4}$/.test(settings.pin)) {
       setPinMode = 'verify';
       el.setPinTitle.textContent = 'Enter current PIN';
       el.setPinSub.textContent = 'Confirm your current PIN to continue';
@@ -2904,6 +2912,7 @@
   let diaryLockTargetId = null;   // diary awaiting unlock
   const unlockedThisSession = new Set(); // diary ids the user has successfully unlocked since app launch
   let diaryLockEntered = '';      // pin digits entered so far (pin mode)
+  let pendingUnlockCallback = null; // what to do once the target diary is confirmed unlocked
 
   // any diary's correct secret (pin/pattern) or correct security answer unlocks the
   // specific diary being opened — this is intentional (universal override), per user request
@@ -2916,13 +2925,20 @@
     });
   }
 
-  function openDiaryRespectingLock(diaryId) {
+  // every entry point into a diary (grid tap, search hit, bookmark, insights card,
+  // quick actions, popstate) must go through this — never call openCoverScreen /
+  // openBookScreen directly with a diary id that might be locked.
+  // `onUnlocked` runs only after the diary is confirmed open (immediately if it
+  // was already unlocked / has no lock, or after a correct PIN/password).
+  function openDiaryRespectingLock(diaryId, onUnlocked) {
     const diary = getDiary(diaryId);
     if (!diary) return;
+    const proceed = onUnlocked || (() => openCoverScreen(diaryId));
     if (!diary.lock || unlockedThisSession.has(diaryId)) {
-      openCoverScreen(diaryId);
+      proceed();
       return;
     }
+    pendingUnlockCallback = proceed;
     showDiaryLockScreen(diaryId);
   }
 
@@ -2952,6 +2968,7 @@
     el.diaryLockScreen.hidden = true;
     diaryLockTargetId = null;
     diaryLockEntered = '';
+    pendingUnlockCallback = null;
   }
 
   function renderDiaryLockDots() {
@@ -2965,9 +2982,11 @@
     // exact match against this diary's own lock OR any diary's lock secret (universal override)
     if (inputSecret === diary.lock.secret || checkAnyDiaryUnlockMatch(inputSecret)) {
       const id = diaryLockTargetId;
+      const proceed = pendingUnlockCallback || (() => openCoverScreen(id));
       unlockedThisSession.add(id);
+      pendingUnlockCallback = null;
       hideDiaryLockScreen();
-      openCoverScreen(id);
+      proceed();
     } else {
       el.diaryLockError.hidden = false;
       if (settings.hapticsOn && navigator.vibrate) navigator.vibrate([40, 40, 40]);
@@ -3027,11 +3046,13 @@
     // correct answer against this diary's own question OR any diary's answer (universal override)
     if (answer.toLowerCase() === (diary.lock.answer || '').toLowerCase() || checkAnyDiaryUnlockMatch(answer, { asAnswer: true })) {
       const id = diaryLockTargetId;
+      const proceed = pendingUnlockCallback || (() => openCoverScreen(id));
       unlockedThisSession.add(id);
+      pendingUnlockCallback = null;
       closeForgotLockSheet();
       hideDiaryLockScreen();
       showToast('Diary unlocked');
-      openCoverScreen(id);
+      proceed();
     } else {
       el.forgotLockError.hidden = false;
     }
@@ -3313,18 +3334,22 @@
     el.quickVoiceBtn.addEventListener('click', () => {
       const latest = diaries[0];
       if (!latest) { showToast('Create a diary first'); return; }
-      activeDiaryId = latest.id;
-      openBookScreen();
-      const li = latest.pages.length - 1;
-      renderSpread(Math.floor(li / 2), null);
-      activeEditable = { sheetEl: (li % 2 === 0) ? el.pageSheetLeft : el.pageSheetRight };
-      setTimeout(() => toggleRecording('page'), 350);
+      openDiaryRespectingLock(latest.id, () => {
+        activeDiaryId = latest.id;
+        openBookScreen();
+        const li = latest.pages.length - 1;
+        renderSpread(Math.floor(li / 2), null);
+        activeEditable = { sheetEl: (li % 2 === 0) ? el.pageSheetLeft : el.pageSheetRight };
+        setTimeout(() => toggleRecording('page'), 350);
+      });
     });
     el.quickMoodBtn.addEventListener('click', () => {
       const latest = diaries[0];
       if (!latest) { showToast('Create a diary first'); return; }
-      activeDiaryId = latest.id;
-      openMoodSheet();
+      openDiaryRespectingLock(latest.id, () => {
+        activeDiaryId = latest.id;
+        openMoodSheet();
+      });
     });
     el.quickSearchBtn.addEventListener('click', openHistoryScreen);
 
