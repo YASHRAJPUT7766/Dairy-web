@@ -775,12 +775,14 @@
     persist();
 
     activeDiaryId = diary.id;
-    openCoverScreen(diary.id);
+    // replace the empty "create" form in history with the cover screen, so
+    // pressing back after creating a diary goes to home, not back into the form
+    openCoverScreen(diary.id, { replace: true });
   }
 
   // ============ COVER SCREEN ============
 
-  function openCoverScreen(diaryId) {
+  function openCoverScreen(diaryId, opts) {
     activeDiaryId = diaryId;
     const diary = getDiary(diaryId);
     if (!diary) return;
@@ -790,7 +792,7 @@
     el.bookCoverSignature.textContent = diary.signature || 'made by Yash';
     el.bookCover.dataset.coverTheme = diary.coverTheme || 'classic';
     renderCoverStickers(diary);
-    showScreen('cover');
+    showScreen('cover', opts);
   }
 
   // ============ COVER SIGNATURE (customisable "made by ...") ============
@@ -2915,17 +2917,6 @@
   let diaryLockEntered = '';      // pin digits entered so far (pin mode)
   let pendingUnlockCallback = null; // what to do once the target diary is confirmed unlocked
 
-  // any diary's correct secret (pin/pattern) or correct security answer unlocks the
-  // specific diary being opened — this is intentional (universal override), per user request
-  function checkAnyDiaryUnlockMatch(input, { asAnswer } = {}) {
-    const norm = (input || '').trim().toLowerCase();
-    return diaries.some(d => {
-      if (!d.lock) return false;
-      if (asAnswer) return (d.lock.answer || '').toLowerCase() === norm;
-      return (d.lock.secret || '').toLowerCase() === norm;
-    });
-  }
-
   // every entry point into a diary (grid tap, search hit, bookmark, insights card,
   // quick actions, popstate, settings) must go through this — never call
   // openCoverScreen / openBookScreen directly with a diary id that might be locked.
@@ -2982,8 +2973,8 @@
   function tryUnlockDiary(inputSecret) {
     const diary = getDiary(diaryLockTargetId);
     if (!diary) return;
-    // exact match against this diary's own lock OR any diary's lock secret (universal override)
-    if (inputSecret === diary.lock.secret || checkAnyDiaryUnlockMatch(inputSecret)) {
+    // must match this diary's own secret — every diary's lock is independent
+    if (inputSecret === diary.lock.secret) {
       const id = diaryLockTargetId;
       const proceed = pendingUnlockCallback || (() => openCoverScreen(id));
       pendingUnlockCallback = null;
@@ -3045,8 +3036,8 @@
     const diary = getDiary(diaryLockTargetId);
     if (!diary) return;
     const answer = (el.forgotLockAnswerInput.value || '').trim();
-    // correct answer against this diary's own question OR any diary's answer (universal override)
-    if (answer.toLowerCase() === (diary.lock.answer || '').toLowerCase() || checkAnyDiaryUnlockMatch(answer, { asAnswer: true })) {
+    // must match this diary's own security answer — every diary's lock is independent
+    if (answer.toLowerCase() === (diary.lock.answer || '').toLowerCase()) {
       const id = diaryLockTargetId;
       const proceed = pendingUnlockCallback || (() => openCoverScreen(id));
       pendingUnlockCallback = null;
