@@ -677,7 +677,10 @@
     else if (name === 'create') openCreateScreen();
     else if (name === 'history') openHistoryScreen();
     else if (name === 'cover') openDiaryRespectingLock(activeDiaryId);
-    else if (name === 'book') { if (diaries.some(d => d.id === activeDiaryId) && (!getDiary(activeDiaryId).lock || unlockedThisSession.has(activeDiaryId))) openBookScreen(); else initHome(); }
+    else if (name === 'book') {
+      if (diaries.some(d => d.id === activeDiaryId)) openDiaryRespectingLock(activeDiaryId, () => openBookScreen());
+      else initHome();
+    }
     else if (name === 'profile') openProfileScreen();
     else if (name === 'insights') openInsightsScreen();
     else initHome();
@@ -772,7 +775,6 @@
     persist();
 
     activeDiaryId = diary.id;
-    if (lock) unlockedThisSession.add(diary.id);
     openCoverScreen(diary.id);
   }
 
@@ -2910,7 +2912,6 @@
   };
 
   let diaryLockTargetId = null;   // diary awaiting unlock
-  const unlockedThisSession = new Set(); // diary ids the user has successfully unlocked since app launch
   let diaryLockEntered = '';      // pin digits entered so far (pin mode)
   let pendingUnlockCallback = null; // what to do once the target diary is confirmed unlocked
 
@@ -2926,15 +2927,17 @@
   }
 
   // every entry point into a diary (grid tap, search hit, bookmark, insights card,
-  // quick actions, popstate) must go through this — never call openCoverScreen /
-  // openBookScreen directly with a diary id that might be locked.
-  // `onUnlocked` runs only after the diary is confirmed open (immediately if it
-  // was already unlocked / has no lock, or after a correct PIN/password).
+  // quick actions, popstate, settings) must go through this — never call
+  // openCoverScreen / openBookScreen directly with a diary id that might be locked.
+  // There is NO session-wide "already unlocked" memory: a locked diary always asks
+  // for its PIN/password again, every single time, from every entry point, with no
+  // exceptions and no need to refresh the page.
+  // `onUnlocked` runs only after the diary is confirmed open.
   function openDiaryRespectingLock(diaryId, onUnlocked) {
     const diary = getDiary(diaryId);
     if (!diary) return;
     const proceed = onUnlocked || (() => openCoverScreen(diaryId));
-    if (!diary.lock || unlockedThisSession.has(diaryId)) {
+    if (!diary.lock) {
       proceed();
       return;
     }
@@ -2983,7 +2986,6 @@
     if (inputSecret === diary.lock.secret || checkAnyDiaryUnlockMatch(inputSecret)) {
       const id = diaryLockTargetId;
       const proceed = pendingUnlockCallback || (() => openCoverScreen(id));
-      unlockedThisSession.add(id);
       pendingUnlockCallback = null;
       hideDiaryLockScreen();
       proceed();
@@ -3047,7 +3049,6 @@
     if (answer.toLowerCase() === (diary.lock.answer || '').toLowerCase() || checkAnyDiaryUnlockMatch(answer, { asAnswer: true })) {
       const id = diaryLockTargetId;
       const proceed = pendingUnlockCallback || (() => openCoverScreen(id));
-      unlockedThisSession.add(id);
       pendingUnlockCallback = null;
       closeForgotLockSheet();
       hideDiaryLockScreen();
@@ -3123,7 +3124,6 @@
 
     if (manageLockType === 'none') {
       diary.lock = null;
-      unlockedThisSession.delete(diary.id);
       persist();
       renderDiaryLockManageList();
       renderDiaryGrid();
@@ -3139,7 +3139,6 @@
     if (!answer) { showToast('Enter an answer for your security question'); return; }
 
     diary.lock = { type: manageLockType, secret, question: el.manageLockQuestionSelect.value, answer: answer.toLowerCase() };
-    unlockedThisSession.add(diary.id);
     persist();
     renderDiaryLockManageList();
     renderDiaryGrid();
