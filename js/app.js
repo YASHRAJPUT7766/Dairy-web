@@ -117,7 +117,7 @@
     fsVoiceNoteBtn: $('fsVoiceNoteBtn'), fsBookmarkBtn: $('fsBookmarkBtn'), fsPhotoBtn: $('fsPhotoBtn'), fsTagBtn: $('fsTagBtn'),
     fsTtsBtn: $('fsTtsBtn'), fsTagsRow: $('fsTagsRow'), photoFileInput: $('photoFileInput'),
     fsHeadline: $('fsHeadline'), fsDate: $('fsDate'), fsBody: $('fsBody'), fsMicFab: $('fsMicFab'),
-    fsContent: $('fsContent'), fsStickerLayer: $('fsStickerLayer'),
+    fsContent: $('fsContent'), fsStickerLayer: $('fsStickerLayer'), fsBodyZone: $('fsBodyZone'),
     recordingIndicator: $('recordingIndicator'), recordingTime: $('recordingTime'),
 
     fontSheetBackdrop: $('fontSheetBackdrop'), fontSheet: $('fontSheet'), fontOptions: $('fontOptions'),
@@ -969,6 +969,7 @@
 
     const doFill = () => {
       const li = pIndex * 2, ri = pIndex * 2 + 1;
+      syncPageFonts();
       fillPageSheet(el.pageSheetLeft, diary.pages[li], li);
       fillPageSheet(el.pageSheetRight, diary.pages[ri], ri);
       const total = diary.pages.length;
@@ -1057,13 +1058,59 @@
   const MINI_PAGE_MAX_LINES = 12;
   let lineLimitToastShown = false;
 
+  // ============ UNIFIED TEXT-WRAP MATCHING (Mini View <-> Full/Expand View) ============
+  // Mini View and the Fullscreen/Expand View render the SAME page.text in two
+  // differently-sized boxes. If each box just used its own fixed font-size,
+  // the number of words that fit on one line would differ between the two
+  // (e.g. 4-5 words in Mini vs 8-10 in Full), so the same text would wrap
+  // into a different number of lines and any sticker/photo positioned
+  // relative to the text would appear to "jump" or resize between views.
+  //
+  // Fix: every time a box is shown, measure its actual content width in CSS
+  // pixels and set its font-size so that (contentWidth / fontSize) — the
+  // "characters per line" ratio — is IDENTICAL across both boxes. Since both
+  // boxes already share the same font-family and line-height multiplier,
+  // matching that ratio guarantees identical word-wrap and an identical line
+  // count for the same text, no matter how big either box is drawn.
+  const WRAP_REF_CHARS_PER_LINE = 30; // baseline "characters per line" the app is tuned around
+  const FS_BODY_LINE_HEIGHT_MULT = 1.9; // must match --fs-body-line-height in css/style.css
+
+  function applyMatchedWrapFont(targetEl) {
+    if (!targetEl) return;
+    const cs = window.getComputedStyle(targetEl);
+    const paddingX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+    const contentWidth = targetEl.clientWidth - paddingX;
+    if (contentWidth <= 0) return;
+    const fontSize = contentWidth / (WRAP_REF_CHARS_PER_LINE * 0.52);
+    const clamped = Math.max(9, Math.min(fontSize, 26));
+    targetEl.style.fontSize = clamped.toFixed(2) + 'px';
+    // if this is the Full/Expand View's body, keep its sticker/photo
+    // coordinate zone (fsBodyZone) pinned to exactly 12 lines of THIS
+    // font-size, so it always matches the visible text box height —
+    // otherwise placed photos/stickers would drift relative to the text
+    // whenever the dynamic font-size differs from the old fixed CSS size.
+    if (targetEl === el.fsBody && el.fsBodyZone) {
+      el.fsBodyZone.style.height = (clamped * FS_BODY_LINE_HEIGHT_MULT * MINI_PAGE_MAX_LINES) + 'px';
+    }
+    return clamped;
+  }
+
+  function syncPageFonts() {
+    [
+      el.pageSheetLeft && el.pageSheetLeft.querySelector('[data-field="lines"]'),
+      el.pageSheetRight && el.pageSheetRight.querySelector('[data-field="lines"]'),
+      el.fsBody
+    ].forEach(applyMatchedWrapFont);
+  }
+
   // Fills linesEl with page.text, but visually capped to ~12 lines for the
   // Mini Book View. The underlying page.text is NEVER touched here — this
-  // only decides what gets displayed. If the saved text is longer (e.g. it
-  // was written in Full View, which has no cap), we trim the *display*
-  // copy and append an ellipsis, so nothing overflows the page or gets cut
-  // mid-word at a hard edge.
+  // only decides what gets displayed. If the saved text is somehow longer
+  // than 12 lines (both views now share the same 12-line cap with auto
+  // overflow, so this is just a safety net), we trim the *display* copy and
+  // append an ellipsis, so nothing overflows the page or gets cut mid-word.
   function fillMiniLinesCapped(linesEl, fullText) {
+    applyMatchedWrapFont(linesEl);
     linesEl.textContent = fullText || '';
     if (!fullText) return;
     const style = window.getComputedStyle(linesEl);
@@ -1073,7 +1120,6 @@
 
     const ELLIPSIS = '…';
     let lo = 0, hi = fullText.length, best = 0;
-    // binary search for the longest prefix (plus ellipsis) that still fits
     while (lo <= hi) {
       const mid = Math.floor((lo + hi) / 2);
       linesEl.textContent = fullText.slice(0, mid).trimEnd() + ELLIPSIS;
@@ -1083,41 +1129,148 @@
     linesEl.textContent = fullText.slice(0, best).trimEnd() + ELLIPSIS;
   }
 
-  // Enforces the 12-line cap live while the user TYPES directly in Mini
-  // Book View. (Editing there is naturally short-form; this blocks further
-  // keystrokes once full and nudges the user to Full View for more.)
-  function enforceMiniLineLimit(linesEl) {
-    if (!linesEl) return false;
+  // ============ 12-LINE CAP WITH AUTO OVERFLOW TO NEXT PAGE ============
+  // Shared by BOTH Mini View and Full/Expand View so behavior is identical
+  // everywhere: once the box is full at 12 lines, further typing is NOT
+  // blocked — it is carried over onto the next page (a new page is created
+  // if needed), and the caret follows the overflowed text there.
+  function measureMaxHeight(linesEl) {
     const style = window.getComputedStyle(linesEl);
     const lineHeight = parseFloat(style.lineHeight) || (parseFloat(style.fontSize) * 1.9);
-    const maxHeight = lineHeight * MINI_PAGE_MAX_LINES;
+    return lineHeight * MINI_PAGE_MAX_LINES;
+  }
+
+  // Finds the longest prefix of `text` that still fits within the 12-line
+  // box, without cutting a word in half. Returns { fitting, overflow }.
+  function splitTextAtLineLimit(linesEl, text) {
+    const maxHeight = measureMaxHeight(linesEl);
+    const original = linesEl.textContent;
+    linesEl.textContent = text;
+    if (linesEl.scrollHeight <= maxHeight + 1) {
+      linesEl.textContent = original;
+      return { fitting: text, overflow: '' };
+    }
+    let lo = 0, hi = text.length, best = 0;
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      linesEl.textContent = text.slice(0, mid);
+      if (linesEl.scrollHeight <= maxHeight + 1) { best = mid; lo = mid + 1; }
+      else hi = mid - 1;
+    }
+    let cut = best;
+    if (cut < text.length && text[cut] && !/\s/.test(text[cut])) {
+      const lastSpace = text.lastIndexOf(' ', cut);
+      if (lastSpace > 0) cut = lastSpace;
+    }
+    linesEl.textContent = original;
+    return { fitting: text.slice(0, cut).replace(/\s+$/, ''), overflow: text.slice(cut).replace(/^\s+/, '') };
+  }
+
+  // Ensures a page exists right after pageIdx, creating a blank one if
+  // needed, and returns its index.
+  function ensureNextPageExists(pageIdx) {
+    const diary = currentDiary();
+    if (!diary) return -1;
+    const nextIdx = pageIdx + 1;
+    if (!diary.pages[nextIdx]) {
+      diary.pages.splice(nextIdx, 0, { id: uid(), headline: '', date: new Date().toISOString(), text: '', stickers: [], voiceClips: [], photos: [], tags: [], bookmarked: false });
+    }
+    return nextIdx;
+  }
+
+  // Core overflow handler: call after text changes in a 12-line box. If the
+  // box now holds more than 12 lines' worth of text, spill the tail onto the
+  // next page (prepended, so nothing already there is lost) and let the
+  // caller move the user's caret to the overflowed page.
+  function enforceLineLimitWithOverflow(linesEl, pageIdx, opts) {
+    opts = opts || {};
+    if (!linesEl || pageIdx === null || pageIdx === undefined || pageIdx < 0) return false;
+    const maxHeight = measureMaxHeight(linesEl);
     if (linesEl.scrollHeight <= maxHeight + 1) {
       linesEl.classList.remove('line-limit-exceeded');
       return false;
     }
-    // over the limit: trim from the end until it fits back within 12 lines
-    let text = linesEl.textContent;
-    const sel = window.getSelection();
-    const hadFocus = document.activeElement === linesEl;
-    while (linesEl.scrollHeight > maxHeight + 1 && text.length > 0) {
-      text = text.slice(0, -1);
-      linesEl.textContent = text;
-    }
-    linesEl.classList.add('line-limit-exceeded');
-    if (hadFocus) {
-      // put the caret back at the end after trimming
-      const range = document.createRange();
-      range.selectNodeContents(linesEl);
-      range.collapse(false);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
+    const diary = currentDiary();
+    if (!diary || !diary.pages[pageIdx]) return false;
+
+    const fullText = linesEl.textContent;
+    const { fitting, overflow } = splitTextAtLineLimit(linesEl, fullText);
+    if (!overflow) return false; // safety: nothing to spill
+
+    linesEl.textContent = fitting;
+    diary.pages[pageIdx].text = fitting;
+
+    const nextIdx = ensureNextPageExists(pageIdx);
+    const nextPage = diary.pages[nextIdx];
+    nextPage.text = overflow + (nextPage.text ? ' ' + nextPage.text : '');
+    persist();
+
     if (!lineLimitToastShown) {
       lineLimitToastShown = true;
-      showToast('12-line limit reached — open Full View to keep writing');
-      setTimeout(() => { lineLimitToastShown = false; }, 4000);
+      showToast('Page full — continuing on the next page');
+      setTimeout(() => { lineLimitToastShown = false; }, 2500);
     }
+
+    if (typeof opts.onOverflow === 'function') opts.onOverflow(nextIdx, overflow);
     return true;
+  }
+
+  // Enforces the shared 12-line cap live while typing in Mini Book View;
+  // once full, overflow text is carried onto the next page automatically.
+  function enforceMiniLineLimit(linesEl) {
+    if (!linesEl) return false;
+    const sheetEl = linesEl.closest('.page-sheet');
+    const idxStr = sheetEl && sheetEl.dataset.pageIndex;
+    const pageIdx = (idxStr !== undefined && idxStr !== '') ? Number(idxStr) : NaN;
+    if (isNaN(pageIdx)) return false;
+    return enforceLineLimitWithOverflow(linesEl, pageIdx, {
+      onOverflow: (nextIdx) => {
+        clearTimeout(autosaveTimer);
+        renderSpread(Math.floor(nextIdx / 2), 'next');
+        setTimeout(() => {
+          const nextSheetEl = (nextIdx % 2 === 0) ? el.pageSheetLeft : el.pageSheetRight;
+          const nextLinesEl = nextSheetEl && nextSheetEl.querySelector('[data-field="lines"]');
+          if (nextLinesEl) {
+            nextLinesEl.focus();
+            const range = document.createRange();
+            range.selectNodeContents(nextLinesEl);
+            range.collapse(true);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        }, 350);
+      }
+    });
+  }
+
+  // Same overflow behavior, wired for the Full/Expand View's fsBody box.
+  function enforceFsLineLimit(linesEl) {
+    if (!linesEl || editingIndex === null) return false;
+    return enforceLineLimitWithOverflow(linesEl, editingIndex, {
+      onOverflow: (nextIdx) => {
+        clearTimeout(autosaveTimer);
+        editingIndex = nextIdx;
+        const diary = currentDiary();
+        const nextPage = diary && diary.pages[nextIdx];
+        el.fsHeadline.textContent = (nextPage && nextPage.headline) || '';
+        el.fsDate.textContent = nextPage ? formatDateLong(new Date(nextPage.date)) : '';
+        applyMatchedWrapFont(el.fsBody);
+        el.fsBody.textContent = (nextPage && nextPage.text) || '';
+        renderStickersForSheet(el.fsStickerLayer, nextPage, nextIdx, { fullscreen: true });
+        renderVoiceClipsForSheet(el.fsStickerLayer, nextPage, nextIdx, { fullscreen: true });
+        renderPhotosForSheet(el.fsStickerLayer, nextPage, nextIdx);
+        renderFsBookmark(nextPage);
+        renderFsTags(nextPage);
+        el.fsBody.focus();
+        const range = document.createRange();
+        range.selectNodeContents(el.fsBody);
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    });
   }
 
   function scheduleAutosave(fn) {
@@ -1891,6 +2044,7 @@
     applyFont(diary.font);
     el.fsHeadline.textContent = page.headline || '';
     el.fsDate.textContent = formatDateLong(new Date(page.date));
+    applyMatchedWrapFont(el.fsBody);
     el.fsBody.textContent = page.text || '';
     el.fsSheet.dataset.theme = page.theme || diary.theme || 'parchment';
     renderStickersForSheet(el.fsStickerLayer, page, idx, { fullscreen: true });
@@ -1931,6 +2085,9 @@
   function toggleFullscreenExpand() {
     const isFull = el.fullscreenReader.classList.toggle('fs-fullscreen');
     el.fsExpandBtn.classList.toggle('active', isFull);
+    // the sheet's width just changed, so the wrap-matched font must be
+    // recomputed or word-wrap would drift out of sync with Mini View again
+    requestAnimationFrame(() => applyMatchedWrapFont(el.fsBody));
   }
 
   // ============ BOOKMARK (favorite pages) ============
@@ -3536,6 +3693,15 @@
     });
 
     el.fullscreenBtn.addEventListener('click', openFullscreen);
+
+    let wrapFontResizeTimer = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(wrapFontResizeTimer);
+      wrapFontResizeTimer = setTimeout(() => {
+        syncPageFonts();
+        if (!el.fullscreenReader.hidden) applyMatchedWrapFont(el.fsBody);
+      }, 150);
+    });
     if (el.rotateBtn && el.landscapeOverlay && el.landscapeOverlayStage) {
       const pageStageHome = el.pageStage.parentNode; // where pageStage normally lives, so we can put it back
       const pageStageNextSibling = el.pageStage.nextSibling;
@@ -3564,7 +3730,10 @@
     el.fsHeadline.addEventListener('blur', saveFsEdits);
     el.fsBody.addEventListener('blur', saveFsEdits);
     el.fsHeadline.addEventListener('input', () => scheduleAutosave(saveFsEdits));
-    el.fsBody.addEventListener('input', () => scheduleAutosave(saveFsEdits));
+    el.fsBody.addEventListener('input', () => {
+      enforceFsLineLimit(el.fsBody);
+      scheduleAutosave(saveFsEdits);
+    });
     el.fsMicFab.addEventListener('click', () => toggleRecording('fs'));
     wireHoldToRecord(el.fsMicFab, 'fs');
     wireHoldToRecord(el.pageMicFab, 'page');
