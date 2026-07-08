@@ -106,6 +106,7 @@
 
     bookScreen: $('bookScreen'), bookBackBtn: $('bookBackBtn'), pageIndicator: $('pageIndicator'),
     fontBtn: $('fontBtn'), fullscreenBtn: $('fullscreenBtn'), printBtn: $('printBtn'), rotateBtn: $('rotateBtn'),
+    landscapeOverlay: $('landscapeOverlay'), landscapeOverlayStage: $('landscapeOverlayStage'), landscapeCloseBtn: $('landscapeCloseBtn'),
     pageStage: $('pageStage'), zonePrev: $('zonePrev'), zoneNext: $('zoneNext'),
     bookSpread: $('bookSpread'), pageSheetLeft: $('pageSheetLeft'), pageSheetRight: $('pageSheetRight'),
     pageMicFab: $('pageMicFab'), pageMoodFab: $('pageMoodFab'), addPageBtn: $('addPageBtn'),
@@ -3486,13 +3487,29 @@
     });
 
     el.fullscreenBtn.addEventListener('click', openFullscreen);
-    if (el.rotateBtn) {
+    if (el.rotateBtn && el.landscapeOverlay && el.landscapeOverlayStage) {
+      const pageStageHome = el.pageStage.parentNode; // where pageStage normally lives, so we can put it back
+      const pageStageNextSibling = el.pageStage.nextSibling;
+
+      const openLandscape = () => {
+        el.landscapeOverlayStage.appendChild(el.pageStage); // move (not clone) — keeps all listeners/IDs intact
+        el.landscapeOverlay.classList.add('show');
+        el.rotateBtn.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      };
+      const closeLandscape = () => {
+        if (pageStageNextSibling) pageStageHome.insertBefore(el.pageStage, pageStageNextSibling);
+        else pageStageHome.appendChild(el.pageStage);
+        el.landscapeOverlay.classList.remove('show');
+        el.rotateBtn.classList.remove('active');
+        document.body.style.overflow = '';
+      };
+
       el.rotateBtn.addEventListener('click', () => {
-        const isLandscape = el.pageStage.classList.toggle('landscape-mode');
-        el.rotateBtn.classList.toggle('active', isLandscape);
-        el.rotateBtn.setAttribute('aria-label', isLandscape ? 'Rotate to portrait' : 'Rotate to landscape');
-        showToast(isLandscape ? 'Landscape view — tap the page edges to flip' : 'Portrait view');
+        if (el.landscapeOverlay.classList.contains('show')) closeLandscape();
+        else openLandscape();
       });
+      el.landscapeCloseBtn.addEventListener('click', closeLandscape);
     }
     el.fsCloseBtn.addEventListener('click', closeFullscreen);
     el.fsHeadline.addEventListener('blur', saveFsEdits);
