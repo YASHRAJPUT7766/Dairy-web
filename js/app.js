@@ -105,7 +105,7 @@
     coverStickerOptions: $('coverStickerOptions'), coverStickerClearBtn: $('coverStickerClearBtn'),
 
     bookScreen: $('bookScreen'), bookBackBtn: $('bookBackBtn'), pageIndicator: $('pageIndicator'),
-    fontBtn: $('fontBtn'), fullscreenBtn: $('fullscreenBtn'), printBtn: $('printBtn'),
+    fontBtn: $('fontBtn'), fullscreenBtn: $('fullscreenBtn'), printBtn: $('printBtn'), rotateBtn: $('rotateBtn'),
     pageStage: $('pageStage'), zonePrev: $('zonePrev'), zoneNext: $('zoneNext'),
     bookSpread: $('bookSpread'), pageSheetLeft: $('pageSheetLeft'), pageSheetRight: $('pageSheetRight'),
     pageMicFab: $('pageMicFab'), pageMoodFab: $('pageMoodFab'), addPageBtn: $('addPageBtn'),
@@ -1053,6 +1053,47 @@
     persist();
   }
 
+  const MINI_PAGE_MAX_LINES = 12;
+  let lineLimitToastShown = false;
+
+  // Enforces the 12-line cap on the compact Mini Book View. Typing beyond the
+  // cap is blocked (extra keystrokes are dropped) and the user is nudged
+  // toward Full View, which has no such restriction. Returns true if the
+  // content was over the limit and had to be trimmed.
+  function enforceMiniLineLimit(linesEl) {
+    if (!linesEl) return false;
+    const style = window.getComputedStyle(linesEl);
+    const lineHeight = parseFloat(style.lineHeight) || (parseFloat(style.fontSize) * 1.75);
+    const maxHeight = lineHeight * MINI_PAGE_MAX_LINES;
+    if (linesEl.scrollHeight <= maxHeight + 1) {
+      linesEl.classList.remove('line-limit-exceeded');
+      return false;
+    }
+    // over the limit: trim from the end until it fits back within 12 lines
+    let text = linesEl.textContent;
+    const sel = window.getSelection();
+    const hadFocus = document.activeElement === linesEl;
+    while (linesEl.scrollHeight > maxHeight + 1 && text.length > 0) {
+      text = text.slice(0, -1);
+      linesEl.textContent = text;
+    }
+    linesEl.classList.add('line-limit-exceeded');
+    if (hadFocus) {
+      // put the caret back at the end after trimming
+      const range = document.createRange();
+      range.selectNodeContents(linesEl);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    if (!lineLimitToastShown) {
+      lineLimitToastShown = true;
+      showToast('12-line limit reached — open Full View to keep writing');
+      setTimeout(() => { lineLimitToastShown = false; }, 4000);
+    }
+    return true;
+  }
+
   function scheduleAutosave(fn) {
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(fn, 800);
@@ -1275,7 +1316,7 @@
     const container = layerEl;
     if (!container) return;
 
-    container.querySelectorAll('.placed-sticker').forEach(n => n.remove());
+    container.querySelectorAll('.placed-sticker:not(.placed-photo)').forEach(n => n.remove());
     if (!page || !Array.isArray(page.stickers) || !page.stickers.length) {
       syncContainerPointerEvents(container);
       return;
@@ -1435,8 +1476,8 @@
 
       const playBtn = document.createElement('button');
       playBtn.className = 'voice-clip-play';
-      const playIcon = '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
-      const pauseIcon = '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
+      const playIcon = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+      const pauseIcon = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
       playBtn.innerHTML = playIcon;
       node.appendChild(playBtn);
 
@@ -3411,8 +3452,14 @@
     });
     el.pageSheetLeft.addEventListener('focusout', () => saveSheetEdits(el.pageSheetLeft));
     el.pageSheetRight.addEventListener('focusout', () => saveSheetEdits(el.pageSheetRight));
-    el.pageSheetLeft.addEventListener('input', () => scheduleAutosave(() => saveSheetEdits(el.pageSheetLeft)));
-    el.pageSheetRight.addEventListener('input', () => scheduleAutosave(() => saveSheetEdits(el.pageSheetRight)));
+    el.pageSheetLeft.addEventListener('input', (e) => {
+      if (e.target.dataset.field === 'lines') enforceMiniLineLimit(e.target);
+      scheduleAutosave(() => saveSheetEdits(el.pageSheetLeft));
+    });
+    el.pageSheetRight.addEventListener('input', (e) => {
+      if (e.target.dataset.field === 'lines') enforceMiniLineLimit(e.target);
+      scheduleAutosave(() => saveSheetEdits(el.pageSheetRight));
+    });
 
     const leftMaximizeBtn = el.pageSheetLeft.querySelector('[data-action="maximize"]');
     const rightMaximizeBtn = el.pageSheetRight.querySelector('[data-action="maximize"]');
@@ -3439,6 +3486,14 @@
     });
 
     el.fullscreenBtn.addEventListener('click', openFullscreen);
+    if (el.rotateBtn) {
+      el.rotateBtn.addEventListener('click', () => {
+        const isLandscape = el.pageStage.classList.toggle('landscape-mode');
+        el.rotateBtn.classList.toggle('active', isLandscape);
+        el.rotateBtn.setAttribute('aria-label', isLandscape ? 'Rotate to portrait' : 'Rotate to landscape');
+        showToast(isLandscape ? 'Landscape view — tap the page edges to flip' : 'Portrait view');
+      });
+    }
     el.fsCloseBtn.addEventListener('click', closeFullscreen);
     el.fsHeadline.addEventListener('blur', saveFsEdits);
     el.fsBody.addEventListener('blur', saveFsEdits);
