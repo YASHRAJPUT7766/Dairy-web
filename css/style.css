@@ -711,8 +711,10 @@ input, textarea { font-family: inherit; }
 .fs-date { font-size: var(--fs-date-size); color: #8a7a58; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 22px; }
 .fs-body {
   font-family: var(--serif); font-size: var(--fs-body-size); line-height: var(--fs-body-line-height); white-space: pre-wrap; outline: none;
-  min-height: 200px; position: relative; z-index: 2;
+  min-height: 110px; max-height: calc(var(--fs-body-line-height) * 1em * 12); overflow: hidden;
+  position: relative; z-index: 2;
 }
+.fs-body.line-limit-exceeded { box-shadow: inset 0 -22px 14px -14px rgba(201, 138, 46, 0.25); }
 
 /* The sticker/photo/voice-clip coordinate box (page-body-zone) is pinned to
    a FIXED height equal to the Mini View's 12-line cap, in both views. Text
