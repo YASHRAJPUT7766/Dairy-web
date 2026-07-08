@@ -498,7 +498,7 @@ input, textarea { font-family: inherit; }
 }
 
 /* stickers dropped directly on the cover */
-#coverStickerLayer { z-index: 1; }
+#coverStickerLayer { z-index: 6; }
 #coverStickerLayer .placed-sticker { filter: drop-shadow(0 3px 8px rgba(0,0,0,0.4)); }
 
 /* ---- cover theme picker swatches ---- */
@@ -544,19 +544,34 @@ input, textarea { font-family: inherit; }
 .zone-prev { left: 0; }
 .zone-next { right: 0; }
 
-/* Rotate button: widens the stage into a landscape-feeling spread. Because
-   sticker/photo/voice-clip positions are %-based and text/icon sizes are
-   driven by the container-query + --mini-scale system, everything already
-   placed reflows correctly to the new proportions with no extra math. */
-.page-stage.landscape-mode {
-  height: min(62vw, 280px); max-width: 640px;
+/* Rotate button: takes the whole book spread fullscreen, rotated into
+   landscape — like a video going fullscreen. The Mini Book View itself
+   (.page-stage) is untouched and stays compact; this is a separate
+   overlay layer on top of everything. Page content keeps the SAME
+   mini-view proportions/scale (--mini-scale), it's simply presented
+   bigger and sideways, not switched into the Full Editing View. */
+.landscape-overlay {
+  position: fixed; inset: 0; z-index: 300; background: #000;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.3s var(--ease);
 }
-@media (min-width: 480px) {
-  .page-stage.landscape-mode { height: min(50vh, 320px); }
+.landscape-overlay.show { opacity: 1; pointer-events: auto; }
+.landscape-overlay-stage {
+  position: relative;
+  /* rotate the whole spread 90deg so it reads landscape on a portrait phone */
+  transform: rotate(90deg);
+  width: 100vh; max-width: 640px;
+  height: 100vw; max-height: 420px;
+}
+.landscape-overlay-stage .page-stage {
+  position: absolute; inset: 0; height: 100%; max-width: none; margin: 0;
+}
+.landscape-overlay-close {
+  position: absolute; top: 14px; right: 14px; z-index: 301;
+  width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.12);
+  color: #fff; display: grid; place-items: center; transform: rotate(-90deg);
 }
 #rotateBtn.active { color: var(--amber); }
-#rotateBtn svg { transition: transform 0.3s var(--ease); }
-#rotateBtn.active svg { transform: rotate(90deg); }
 
 .book-spread {
   position: absolute; inset: 0; display: flex; border-radius: 14px; overflow: hidden;
@@ -572,7 +587,6 @@ input, textarea { font-family: inherit; }
   flex: 1; position: relative; min-width: 0;
   background: linear-gradient(180deg, var(--parchment) 0%, var(--parchment-dim) 100%);
   padding: 18px 14px 16px; overflow-y: auto; color: var(--ink-dark-text);
-  container-type: inline-size; container-name: diary-page;
 }
 .page-sheet::before {
   content: ''; position: absolute; inset: 0; pointer-events: none;
@@ -691,7 +705,7 @@ input, textarea { font-family: inherit; }
 .fs-tool-btn:hover { background: rgba(43,36,22,0.08); }
 .fs-tool-btn.active { color: var(--amber); }
 
-.fs-content { flex: 1; overflow-y: auto; padding: 28px 34px 90px; position: relative; container-type: inline-size; container-name: diary-page; }
+.fs-content { flex: 1; overflow-y: auto; padding: 28px 34px 90px; position: relative; }
 .fs-headline { font-family: var(--serif); font-size: var(--fs-headline-size); margin-bottom: 6px; outline: none; }
 .fs-headline:empty::before { content: 'Headline...'; color: #9a8a68; }
 .fs-date { font-size: var(--fs-date-size); color: #8a7a58; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 22px; }
@@ -709,6 +723,14 @@ input, textarea { font-family: inherit; }
 
 .fs-sticker-layer { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
 
+/* Shared coordinate anchor for stickers/photos/voice-clips: everything is
+   positioned (%-based) against THIS box in both views, not the whole page.
+   Since it starts right where the writing area starts in each view, the
+   same x/y % always lands on the same relative spot whether you're in
+   Mini Book View or Full View — headline/date/tags height differences no
+   longer throw placement off between the two. */
+.page-body-zone { position: relative; container-type: inline-size; container-name: diary-page; }
+
 /* ============ PERMANENT PAGE DECORATIONS (peacock feather + pen) ============ */
 .page-decor {
   position: absolute; z-index: 1; pointer-events: none;
@@ -721,6 +743,12 @@ input, textarea { font-family: inherit; }
 .page-sheet .page-decor { width: 30%; opacity: 0.14; }
 .page-sheet .page-decor-feather { left: -4%; bottom: 2%; }
 .page-sheet .page-decor-pen { right: -4%; bottom: 2%; }
+
+/* diary cover: dark background, so use screen blend (a glow) instead of
+   multiply (which would make the art vanish into black) */
+.book-cover .page-decor { width: 46%; opacity: 0.5; mix-blend-mode: screen; z-index: 1; }
+.book-cover .page-decor-feather { left: -8%; bottom: -2%; }
+.book-cover .page-decor-pen { right: -10%; bottom: -2%; }
 
 /* ---- page themes: applied via data-page-theme on .fs-sheet / .page-sheet ---- */
 .fs-sheet[data-theme="parchment"], .page-sheet[data-theme="parchment"] { background: linear-gradient(180deg, #f6efe0, #ead9bb); color: #2b2416; }
