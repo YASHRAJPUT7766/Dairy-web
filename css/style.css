@@ -586,7 +586,7 @@ input, textarea { font-family: inherit; }
 .page-sheet {
   flex: 1; position: relative; min-width: 0;
   background: linear-gradient(180deg, var(--parchment) 0%, var(--parchment-dim) 100%);
-  padding: 18px 14px 16px; overflow-y: auto; color: var(--ink-dark-text);
+  padding: 18px 14px 16px; overflow: hidden; color: var(--ink-dark-text);
 }
 .page-sheet::before {
   content: ''; position: absolute; inset: 0; pointer-events: none;
@@ -618,8 +618,8 @@ input, textarea { font-family: inherit; }
 .page-date { font-size: calc(var(--fs-date-size) * var(--mini-scale)); color: #8a7a58; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; position: relative; z-index: 2; }
 
 .page-lines {
-  font-family: var(--serif); font-size: calc(var(--fs-body-size) * var(--mini-scale)); line-height: 1.75; letter-spacing: 0.15px; outline: none;
-  min-height: 110px; max-height: calc(1.75em * 12); overflow: hidden;
+  font-family: var(--serif); font-size: calc(var(--fs-body-size) * var(--mini-scale)); line-height: var(--fs-body-line-height); letter-spacing: 0.15px; outline: none;
+  min-height: 110px; max-height: calc(var(--fs-body-line-height) * 1em * 12); overflow: hidden;
   position: relative; z-index: 2; white-space: pre-wrap;
 }
 .page-lines:empty::before { content: 'Write here, or tap the mic...'; color: #9a8a68; }
@@ -713,6 +713,14 @@ input, textarea { font-family: inherit; }
   font-family: var(--serif); font-size: var(--fs-body-size); line-height: var(--fs-body-line-height); white-space: pre-wrap; outline: none;
   min-height: 200px; position: relative; z-index: 2;
 }
+
+/* The sticker/photo/voice-clip coordinate box (page-body-zone) is pinned to
+   a FIXED height equal to the Mini View's 12-line cap, in both views. Text
+   in Full View is free to keep flowing/growing past that height (this rule
+   only affects the invisible positioning box, not the text flow) — but a
+   widget placed at y:40% always lands at the same relative spot in both
+   views, because the box it's measured against never changes size. */
+.page-body-zone#fsBodyZone { height: calc(var(--fs-body-line-height) * 1em * 12); }
 .fs-body:empty::before { content: 'Write here, or tap the mic...'; color: #9a8a68; }
 
 /* ruled lines behind the writing area, like a diary page */
