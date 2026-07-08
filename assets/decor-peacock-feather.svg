@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 220">
+  <g>
+    <!-- quill -->
+    <path d="M62 214 C60 170 58 120 60 40" stroke="#6b5326" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    <!-- feather plume -->
+    <path d="M60 40 C30 55 14 90 20 128 C24 152 40 168 60 176 C80 168 96 152 100 128 C106 90 90 55 60 40 Z"
+          fill="#1f6d5a" opacity="0.92"/>
+    <path d="M60 52 C40 66 30 92 34 118 C37 138 48 152 60 158 C72 152 83 138 86 118 C90 92 80 66 60 52 Z"
+          fill="#2a8f74"/>
+    <!-- eye rings -->
+    <ellipse cx="60" cy="104" rx="26" ry="30" fill="#0f4a63"/>
+    <ellipse cx="60" cy="104" rx="18" ry="21" fill="#1c8f8a"/>
+    <ellipse cx="60" cy="104" rx="10" ry="12" fill="#173a2e"/>
+    <ellipse cx="60" cy="100" rx="4.5" ry="5.5" fill="#0a1f1a"/>
+    <!-- barb lines -->
+    <path d="M60 40 L38 70 M60 40 L82 70 M60 46 L30 90 M60 46 L90 90 M60 150 L46 170 M60 150 L74 170"
+          stroke="#155c49" stroke-width="1.4" fill="none" stroke-linecap="round" opacity="0.55"/>
+  </g>
+</svg>
