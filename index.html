@@ -236,6 +236,8 @@
     <div class="book-wrap">
       <div class="book-shadow-plate"></div>
       <div class="book-cover" id="bookCover" data-cover-theme="classic">
+        <div class="page-decor page-decor-feather" aria-hidden="true"><img src="assets/decor-peacock-feather.svg" alt=""></div>
+        <div class="page-decor page-decor-pen" aria-hidden="true"><img src="assets/decor-pen.svg" alt=""></div>
         <div class="book-cover-inner">
           <span class="book-cover-mark">◐</span>
           <h1 class="book-cover-title" id="bookCoverTitle">My Diary</h1>
@@ -484,9 +486,11 @@
           <div class="page-decor page-decor-feather" aria-hidden="true"><img src="assets/decor-peacock-feather.svg" alt=""></div>
           <p class="page-headline" data-field="headline" contenteditable="true"></p>
           <div class="page-date" data-field="date"></div>
-          <div class="page-lines" data-field="lines" contenteditable="true"></div>
+          <div class="page-body-zone" data-field="bodyZone">
+            <div class="page-lines" data-field="lines" contenteditable="true"></div>
+            <div class="fs-sticker-layer" data-field="stickerLayer"></div>
+          </div>
           <span class="page-num" data-field="num"></span>
-          <div class="fs-sticker-layer" data-field="stickerLayer"></div>
         </div>
         <div class="book-spine"></div>
         <div class="page-sheet page-right" id="pageSheetRight">
@@ -496,9 +500,11 @@
           <div class="page-decor page-decor-pen" aria-hidden="true"><img src="assets/decor-pen.svg" alt=""></div>
           <p class="page-headline" data-field="headline" contenteditable="true"></p>
           <div class="page-date" data-field="date"></div>
-          <div class="page-lines" data-field="lines" contenteditable="true"></div>
+          <div class="page-body-zone" data-field="bodyZone">
+            <div class="page-lines" data-field="lines" contenteditable="true"></div>
+            <div class="fs-sticker-layer" data-field="stickerLayer"></div>
+          </div>
           <span class="page-num" data-field="num"></span>
-          <div class="fs-sticker-layer" data-field="stickerLayer"></div>
         </div>
       </div>
     </div>
@@ -512,6 +518,13 @@
     <button class="page-mood-fab" id="pageMoodFab" aria-label="Set mood">🙂</button>
 
     <button class="add-page-btn" id="addPageBtn">+ New page</button>
+
+    <div class="landscape-overlay" id="landscapeOverlay">
+      <button class="landscape-overlay-close" id="landscapeCloseBtn" aria-label="Exit landscape view">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+      <div class="landscape-overlay-stage" id="landscapeOverlayStage"></div>
+    </div>
   </section>
 
   <!-- ============ FULLSCREEN, EDITABLE, SINGLE-PAGE VIEW ============ -->
@@ -570,8 +583,10 @@
           </button>
         </div>
         <div class="fs-tags-row" id="fsTagsRow"></div>
-        <div class="fs-body" id="fsBody" contenteditable="true"></div>
-        <div class="fs-sticker-layer" id="fsStickerLayer"></div>
+        <div class="page-body-zone" id="fsBodyZone">
+          <div class="fs-body" id="fsBody" contenteditable="true"></div>
+          <div class="fs-sticker-layer" id="fsStickerLayer"></div>
+        </div>
       </div>
 
       <div class="page-mic-fab" id="fsMicFab" aria-label="Voice add">
