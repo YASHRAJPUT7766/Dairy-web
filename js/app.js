@@ -1036,7 +1036,7 @@
     linesEl.contentEditable = 'true';
     headlineEl.textContent = page.headline || '';
     dateEl.textContent = formatDateLong(new Date(page.date)) + (page.mood ? '  ' + page.mood : '');
-    linesEl.textContent = page.text || '';
+    fillMiniLinesCapped(linesEl, page.text || '');
     numEl.textContent = String(idx + 1);
   }
 
@@ -1057,14 +1057,39 @@
   const MINI_PAGE_MAX_LINES = 12;
   let lineLimitToastShown = false;
 
-  // Enforces the 12-line cap on the compact Mini Book View. Typing beyond the
-  // cap is blocked (extra keystrokes are dropped) and the user is nudged
-  // toward Full View, which has no such restriction. Returns true if the
-  // content was over the limit and had to be trimmed.
+  // Fills linesEl with page.text, but visually capped to ~12 lines for the
+  // Mini Book View. The underlying page.text is NEVER touched here — this
+  // only decides what gets displayed. If the saved text is longer (e.g. it
+  // was written in Full View, which has no cap), we trim the *display*
+  // copy and append an ellipsis, so nothing overflows the page or gets cut
+  // mid-word at a hard edge.
+  function fillMiniLinesCapped(linesEl, fullText) {
+    linesEl.textContent = fullText || '';
+    if (!fullText) return;
+    const style = window.getComputedStyle(linesEl);
+    const lineHeight = parseFloat(style.lineHeight) || (parseFloat(style.fontSize) * 1.9);
+    const maxHeight = lineHeight * MINI_PAGE_MAX_LINES;
+    if (linesEl.scrollHeight <= maxHeight + 1) return; // fits, nothing to do
+
+    const ELLIPSIS = '…';
+    let lo = 0, hi = fullText.length, best = 0;
+    // binary search for the longest prefix (plus ellipsis) that still fits
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      linesEl.textContent = fullText.slice(0, mid).trimEnd() + ELLIPSIS;
+      if (linesEl.scrollHeight <= maxHeight + 1) { best = mid; lo = mid + 1; }
+      else hi = mid - 1;
+    }
+    linesEl.textContent = fullText.slice(0, best).trimEnd() + ELLIPSIS;
+  }
+
+  // Enforces the 12-line cap live while the user TYPES directly in Mini
+  // Book View. (Editing there is naturally short-form; this blocks further
+  // keystrokes once full and nudges the user to Full View for more.)
   function enforceMiniLineLimit(linesEl) {
     if (!linesEl) return false;
     const style = window.getComputedStyle(linesEl);
-    const lineHeight = parseFloat(style.lineHeight) || (parseFloat(style.fontSize) * 1.75);
+    const lineHeight = parseFloat(style.lineHeight) || (parseFloat(style.fontSize) * 1.9);
     const maxHeight = lineHeight * MINI_PAGE_MAX_LINES;
     if (linesEl.scrollHeight <= maxHeight + 1) {
       linesEl.classList.remove('line-limit-exceeded');
@@ -3450,9 +3475,33 @@
       if (field === 'headline' || field === 'lines') {
         activeEditable = { sheetEl: e.target.closest('.page-sheet') };
       }
+      if (field === 'lines') {
+        // swap in the FULL saved text for editing — the visible content up to
+        // now may have been a truncated "…" display copy, and editing that
+        // directly would permanently lose everything past the truncation
+        const sheetEl = e.target.closest('.page-sheet');
+        const idxStr = sheetEl && sheetEl.dataset.pageIndex;
+        const diary = currentDiary();
+        const page = diary && idxStr !== '' && idxStr !== undefined ? diary.pages[Number(idxStr)] : null;
+        if (page) e.target.textContent = page.text || '';
+      }
     });
-    el.pageSheetLeft.addEventListener('focusout', () => saveSheetEdits(el.pageSheetLeft));
-    el.pageSheetRight.addEventListener('focusout', () => saveSheetEdits(el.pageSheetRight));
+    el.pageSheetLeft.addEventListener('focusout', (e) => {
+      clearTimeout(autosaveTimer);
+      saveSheetEdits(el.pageSheetLeft);
+      if (e.target.dataset && e.target.dataset.field === 'lines') {
+        const page = currentDiary() && currentDiary().pages[Number(el.pageSheetLeft.dataset.pageIndex)];
+        if (page) fillMiniLinesCapped(e.target, page.text || '');
+      }
+    });
+    el.pageSheetRight.addEventListener('focusout', (e) => {
+      clearTimeout(autosaveTimer);
+      saveSheetEdits(el.pageSheetRight);
+      if (e.target.dataset && e.target.dataset.field === 'lines') {
+        const page = currentDiary() && currentDiary().pages[Number(el.pageSheetRight.dataset.pageIndex)];
+        if (page) fillMiniLinesCapped(e.target, page.text || '');
+      }
+    });
     el.pageSheetLeft.addEventListener('input', (e) => {
       if (e.target.dataset.field === 'lines') enforceMiniLineLimit(e.target);
       scheduleAutosave(() => saveSheetEdits(el.pageSheetLeft));
