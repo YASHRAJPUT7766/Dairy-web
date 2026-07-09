@@ -1503,3 +1503,105 @@ html[data-accent="lavender"] { --amber: #8a7dc4; --amber-soft: rgba(138,125,196,
   transition: all 0.2s var(--ease);
 }
 .template-chip.active { background: var(--amber); border-color: var(--amber); color: #fff; }
+
+/* ============================================
+   NEW FEATURES — Share as Image, Time Capsule,
+   Streak Freeze, Word Cloud, Length Trend, Mood Suggest
+   ============================================ */
+
+/* ---- Time Capsule lock overlay (fullscreen page) ---- */
+.capsule-lock-overlay {
+  position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center; gap: 8px; padding: 32px;
+  background: linear-gradient(180deg, var(--parchment), var(--parchment-dim));
+  color: var(--ink);
+}
+.capsule-lock-overlay svg { opacity: 0.75; margin-bottom: 6px; }
+.capsule-lock-title { font-family: var(--serif); font-size: 18px; font-weight: 600; }
+.capsule-lock-title span { color: var(--amber); }
+.capsule-lock-sub { font-size: 12.5px; color: var(--text-mid); max-width: 260px; line-height: 1.5; }
+.capsule-unlock-early-btn {
+  margin-top: 10px; font-size: 12px; font-weight: 600; color: var(--text-low);
+  text-decoration: underline; padding: 6px;
+}
+
+/* ---- Time Capsule sheet ---- */
+.capsule-sheet-sub { font-size: 12.5px; color: var(--text-mid); text-align: center; margin-bottom: 16px; line-height: 1.5; }
+.capsule-date-input {
+  width: 100%; padding: 12px 14px; border-radius: 12px; background: var(--panel);
+  border: 1.4px solid var(--panel-border); font-size: 14px; color: var(--text-hi); margin-bottom: 16px;
+  font-family: var(--sans);
+}
+.capsule-sheet-actions { display: flex; gap: 10px; }
+.capsule-seal-btn, .capsule-remove-btn {
+  flex: 1; padding: 13px; border-radius: 100px; font-size: 13.5px; font-weight: 700;
+}
+.capsule-seal-btn { background: var(--amber); color: #fff; }
+.capsule-remove-btn { background: var(--panel); color: var(--danger); border: 1.4px solid var(--panel-border); }
+
+/* ---- Share as Image sheet ---- */
+.share-img-sheet { max-height: 88vh; overflow-y: auto; }
+.share-img-preview-wrap {
+  display: flex; justify-content: center; margin-bottom: 14px; background: var(--bg-soft);
+  border-radius: 16px; padding: 10px; border: 1px solid var(--panel-border);
+}
+.share-img-preview-wrap canvas { width: 100%; max-width: 220px; height: auto; border-radius: 10px; box-shadow: 0 6px 20px rgba(36,31,22,0.15); }
+.share-img-format-row { display: flex; gap: 8px; justify-content: center; margin-bottom: 16px; }
+.share-format-chip {
+  font-size: 12px; font-weight: 600; padding: 7px 14px; border-radius: 100px;
+  background: var(--panel); border: 1.4px solid var(--panel-border); color: var(--text-mid);
+}
+.share-format-chip.active { background: var(--amber); border-color: var(--amber); color: #fff; }
+.share-img-actions { display: flex; gap: 10px; }
+.share-img-btn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 13px; border-radius: 100px; font-size: 13.5px; font-weight: 700;
+  background: var(--panel); border: 1.4px solid var(--panel-border); color: var(--text-hi);
+}
+.share-img-btn.primary { background: var(--amber); color: #fff; border-color: var(--amber); }
+
+/* ---- fs-toolbar capsule state (sealed indicator on the tool button) ---- */
+.fs-tool-btn#fsCapsuleBtn.active { color: var(--amber); }
+
+/* ---- Streak freeze card (Insights) ---- */
+.streak-freeze-card {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px;
+  background: linear-gradient(135deg, rgba(120,180,220,0.14), rgba(120,180,220,0.05));
+  border: 1px solid rgba(120,180,220,0.28); margin-top: 10px;
+}
+.streak-freeze-icon { font-size: 22px; flex-shrink: 0; }
+.streak-freeze-title { font-size: 12.5px; font-weight: 700; color: var(--text-hi); }
+.streak-freeze-sub { font-size: 11px; color: var(--text-mid); margin-top: 2px; line-height: 1.4; }
+.streak-freeze-card.used .streak-freeze-title { color: var(--text-mid); }
+.streak-freeze-card.used .streak-freeze-icon { opacity: 0.4; }
+
+/* ---- Word cloud (Insights) ---- */
+.word-cloud-card { padding: 18px 14px; border-radius: 16px; background: var(--panel); border: 1px solid var(--panel-border); }
+.word-cloud { display: flex; flex-wrap: wrap; gap: 8px 10px; justify-content: center; align-items: center; }
+.word-cloud-item { font-family: var(--serif); color: var(--amber); font-weight: 600; line-height: 1; white-space: nowrap; }
+.word-cloud-item:nth-child(3n+1) { color: var(--rose); }
+.word-cloud-item:nth-child(5n+2) { color: var(--ink); opacity: 0.72; }
+
+/* ---- Entry length trend chart (Insights) ---- */
+.length-trend-card { margin-top: 4px; }
+.length-trend-chart { height: 70px; }
+
+/* ---- Mood suggestion hint (mood sheet) ---- */
+.mood-suggest-hint {
+  font-size: 12px; color: var(--text-mid); text-align: center; line-height: 1.5;
+  margin: -8px 0 16px; padding: 10px 12px; background: var(--amber-soft); border-radius: 12px;
+}
+.mood-suggest-hint span { font-weight: 700; color: var(--amber); }
+
+/* ---- Diary grid card: time-capsule badge ---- */
+.diary-grid-card-capsule {
+  position: absolute; top: 8px; left: 8px; z-index: 3; font-size: 13px;
+  background: rgba(255,255,255,0.85); border-radius: 50%; width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ---- Auto vibe accent (subtle mood-based glow, doesn't override the chosen theme) ---- */
+.page-sheet[data-vibe="happy"], .fs-sheet[data-vibe="happy"] { box-shadow: inset 0 0 0 2px rgba(230, 170, 60, 0.18); }
+.page-sheet[data-vibe="calm"], .fs-sheet[data-vibe="calm"] { box-shadow: inset 0 0 0 2px rgba(120, 160, 190, 0.16); }
+.page-sheet[data-vibe="sad"], .fs-sheet[data-vibe="sad"] { box-shadow: inset 0 0 0 2px rgba(110, 130, 170, 0.16); }
+.page-sheet[data-vibe="intense"], .fs-sheet[data-vibe="intense"] { box-shadow: inset 0 0 0 2px rgba(192, 90, 70, 0.18); }
