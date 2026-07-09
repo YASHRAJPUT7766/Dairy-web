@@ -12,7 +12,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Caveat:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Caveat:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600&family=Playwrite+US+Trad&family=Homemade+Apple&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -93,6 +93,26 @@
 
     <span class="doodle-divider"></span>
 
+    <!-- Glance widget: a real OS home-screen widget isn't possible for a web app
+         without wrapping this in a native shell, so this in-app card gives the same
+         "streak/mood at a glance" info right when Voice Diary opens instead. -->
+    <div class="glance-widget" id="glanceWidget">
+      <div class="glance-widget-item">
+        <span class="glance-widget-num" id="glanceStreakNum">0</span>
+        <span class="glance-widget-label">day streak</span>
+      </div>
+      <div class="glance-widget-divider"></div>
+      <div class="glance-widget-item">
+        <span class="glance-widget-mood" id="glanceMoodEmoji">—</span>
+        <span class="glance-widget-label">latest mood</span>
+      </div>
+      <div class="glance-widget-divider"></div>
+      <div class="glance-widget-item">
+        <span class="glance-widget-num" id="glanceGoalNum">0/4</span>
+        <span class="glance-widget-label">week goal</span>
+      </div>
+    </div>
+
     <div class="week-strip" id="weekStrip"></div>
 
     <p class="today-full" id="todayFull">Sunday, 5 July</p>
@@ -100,7 +120,7 @@
     <!-- On this day memory -->
     <div class="memory-card ink-fade" id="memoryCard" hidden>
       <span class="memory-tape"></span>
-      <p class="memory-label">On this day</p>
+      <p class="memory-label" id="memoryLabel">On this day</p>
       <p class="memory-headline" id="memoryHeadline"></p>
       <p class="memory-snippet" id="memorySnippet"></p>
       <p class="memory-date" id="memoryDate"></p>
@@ -447,6 +467,7 @@
     <div class="sheet-handle"></div>
     <h3 class="sheet-title">Options</h3>
     <button class="sheet-action-btn" id="exportDiaryBtn">Export this diary as text</button>
+    <button class="sheet-action-btn" id="exportDiaryPdfBtn">Export this diary as PDF</button>
     <button class="sheet-action-btn" id="allDiariesLinkBtn">All diaries</button>
     <button class="sheet-action-btn sheet-action-danger" id="deleteFromCoverBtn">Delete this diary</button>
   </div>
@@ -677,6 +698,8 @@
       <button class="font-option" data-font="hand" style="font-family:'Caveat',cursive">Caveat<br><small>Handwritten</small></button>
       <button class="font-option" data-font="clean" style="font-family:'Inter',sans-serif">Inter<br><small>Clean & simple</small></button>
       <button class="font-option" data-font="mono" style="font-family:'Space Grotesk',monospace">Grotesk<br><small>Modern</small></button>
+      <button class="font-option font-option-lockable" data-font="inkwell" style="font-family:'Playwrite US Trad',cursive">Inkwell<br><small id="fontLockSubInkwell">Handwritten</small></button>
+      <button class="font-option font-option-lockable" data-font="apple" style="font-family:'Homemade Apple',cursive">Apple<br><small id="fontLockSubApple">Handwritten</small></button>
     </div>
   </div>
 
@@ -729,6 +752,26 @@
         Share
       </button>
       <button class="share-img-btn" id="shareImgDownloadBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg>
+        Download
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ YEAR IN REVIEW SHEET ============ -->
+  <div class="sheet-backdrop" id="yearReviewSheetBackdrop" hidden></div>
+  <div class="bottom-sheet share-img-sheet" id="yearReviewSheet" hidden>
+    <div class="sheet-handle"></div>
+    <h3 class="sheet-title" id="yearReviewTitle">Your Year in Review</h3>
+    <div class="share-img-preview-wrap">
+      <canvas id="yearReviewCanvas" width="1080" height="1920"></canvas>
+    </div>
+    <div class="share-img-actions">
+      <button class="share-img-btn primary" id="yearReviewSendBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z"/></svg>
+        Share
+      </button>
+      <button class="share-img-btn" id="yearReviewDownloadBtn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg>
         Download
       </button>
@@ -811,7 +854,9 @@
         <button class="lang-option" data-lang="en-IN">English (India)</button>
         <button class="lang-option" data-lang="en-US">English (US)</button>
         <button class="lang-option" data-lang="hi-IN">Hindi</button>
+        <button class="lang-option" data-lang="hinglish">Hindi/English mixed</button>
       </div>
+      <p class="settings-note" id="langNote">Mixed Hindi-English speech is transcribed using the English engine, which tends to romanize Hindi words reasonably well — but it isn't true bilingual transcription, so some words may come out approximate.</p>
 
       <p class="settings-group-label">Daily reminder</p>
       <div class="settings-row">
@@ -866,6 +911,7 @@
 
       <p class="settings-group-label">Your data</p>
       <button class="settings-link-btn" id="exportAllBtn">Export all diaries as text</button>
+      <button class="settings-link-btn" id="exportAllPdfBtn">Export all diaries as PDF</button>
       <button class="settings-link-btn" id="backupJsonBtn">Download full backup (.json)</button>
       <button class="settings-link-btn" id="restoreJsonBtn">Restore from backup file</button>
       <input type="file" id="restoreFileInput" accept="application/json" hidden>
@@ -1009,7 +1055,37 @@
         <span class="streak-freeze-icon">🧊</span>
         <div class="streak-freeze-text">
           <p class="streak-freeze-title" id="streakFreezeTitle">1 streak freeze available</p>
-          <p class="streak-freeze-sub">Miss a day and we'll auto-protect your streak once a month.</p>
+          <p class="streak-freeze-sub" id="streakFreezeSub">Miss a day and we'll auto-protect your streak once a month.</p>
+        </div>
+      </div>
+
+      <p class="settings-group-label">Your Recap</p>
+      <div class="recap-tabs" id="recapTabs">
+        <button class="recap-tab active" data-range="week">This Week</button>
+        <button class="recap-tab" data-range="month">This Month</button>
+      </div>
+      <div class="recap-card ink-fade" id="recapCard">
+        <span class="ink-blot"></span>
+        <p class="recap-headline" id="recapHeadline">Write a few entries to see your recap.</p>
+        <p class="recap-body" id="recapBody"></p>
+        <div class="recap-stats-row" id="recapStatsRow"></div>
+      </div>
+      <button class="settings-link-btn" id="yearReviewBtn">✨ See your Year in Review</button>
+
+      <p class="settings-group-label">Weekly Goal</p>
+      <div class="weekly-goal-card" id="weeklyGoalCard">
+        <div class="weekly-goal-ring-wrap">
+          <svg class="weekly-goal-ring" width="64" height="64" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="27" fill="none" stroke="var(--panel-border)" stroke-width="6"/>
+            <circle cx="32" cy="32" r="27" fill="none" stroke="var(--amber)" stroke-width="6" stroke-linecap="round"
+              id="weeklyGoalRingFill" stroke-dasharray="169.6" stroke-dashoffset="169.6" transform="rotate(-90 32 32)"/>
+          </svg>
+          <span class="weekly-goal-ring-label" id="weeklyGoalRingLabel">0/4</span>
+        </div>
+        <div class="weekly-goal-text">
+          <p class="weekly-goal-title" id="weeklyGoalTitle">4 days this week</p>
+          <p class="weekly-goal-sub" id="weeklyGoalSub">Write on 4 days to hit your goal</p>
+          <button class="settings-link-btn weekly-goal-edit-btn" id="weeklyGoalEditBtn">Change goal</button>
         </div>
       </div>
 
@@ -1097,6 +1173,7 @@
   <span class="rec-hint">Release to add voice note</span>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="js/config.js"></script>
 <script src="js/app.js"></script>
 </body>
