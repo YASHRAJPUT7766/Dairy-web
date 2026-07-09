@@ -9,7 +9,13 @@
 
   const STORAGE_KEY = 'voiceDiary_v2_diaries';
   const SETTINGS_KEY = 'voiceDiary_v2_settings';
-  const FONT_MAP = { serif: "'Fraunces', serif", hand: "'Caveat', cursive", clean: "'Inter', sans-serif", mono: "'Space Grotesk', monospace" };
+  const FONT_MAP = {
+    serif: "'Fraunces', serif", hand: "'Caveat', cursive", clean: "'Inter', sans-serif", mono: "'Space Grotesk', monospace",
+    inkwell: "'Playwrite US Trad', cursive", apple: "'Homemade Apple', cursive",
+  };
+  // fonts that start locked and unlock at a streak milestone (longest-ever streak, so
+  // once earned they stay unlocked even if a later streak breaks)
+  const FONT_UNLOCK_REQUIREMENT = { inkwell: 7, apple: 30 };
   const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
 
   // ---------- DOM ----------
@@ -76,9 +82,18 @@
     insightsMoodStrip: $('insightsMoodStrip'), insightsTotalWords: $('insightsTotalWords'),
     insightsTotalHours: $('insightsTotalHours'), insightsPrimaryMoods: $('insightsPrimaryMoods'),
     reflectionsList: $('reflectionsList'),
+    recapTabs: $('recapTabs'), recapCard: $('recapCard'), recapHeadline: $('recapHeadline'),
+    recapBody: $('recapBody'), recapStatsRow: $('recapStatsRow'),
+    weeklyGoalCard: $('weeklyGoalCard'), weeklyGoalRingFill: $('weeklyGoalRingFill'),
+    weeklyGoalRingLabel: $('weeklyGoalRingLabel'), weeklyGoalTitle: $('weeklyGoalTitle'),
+    weeklyGoalSub: $('weeklyGoalSub'), weeklyGoalEditBtn: $('weeklyGoalEditBtn'),
+    yearReviewBtn: $('yearReviewBtn'), yearReviewSheetBackdrop: $('yearReviewSheetBackdrop'),
+    yearReviewSheet: $('yearReviewSheet'), yearReviewCanvas: $('yearReviewCanvas'),
+    yearReviewTitle: $('yearReviewTitle'), yearReviewSendBtn: $('yearReviewSendBtn'), yearReviewDownloadBtn: $('yearReviewDownloadBtn'),
 
     homeGreeting: $('homeGreeting'), streakPill: $('streakPill'), streakText: $('streakText'),
-    memoryCard: $('memoryCard'), memoryHeadline: $('memoryHeadline'), memorySnippet: $('memorySnippet'), memoryDate: $('memoryDate'),
+    memoryCard: $('memoryCard'), memoryHeadline: $('memoryHeadline'), memorySnippet: $('memorySnippet'), memoryDate: $('memoryDate'), memoryLabel: $('memoryLabel'),
+    glanceWidget: $('glanceWidget'), glanceStreakNum: $('glanceStreakNum'), glanceMoodEmoji: $('glanceMoodEmoji'), glanceGoalNum: $('glanceGoalNum'),
     quoteText: $('quoteText'), quoteCard: $('quoteCard'),
     statPages: $('statPages'), statWords: $('statWords'), statStreak: $('statStreak'),
     quickVoiceBtn: $('quickVoiceBtn'), quickMoodBtn: $('quickMoodBtn'), quickSearchBtn: $('quickSearchBtn'),
@@ -96,7 +111,7 @@
     bookCoverTitle: $('bookCoverTitle'), bookCoverMeta: $('bookCoverMeta'), openBookBtn: $('openBookBtn'),
     coverMenuBtn: $('coverMenuBtn'), bookCoverSignature: $('bookCoverSignature'),
     coverSheetBackdrop: $('coverSheetBackdrop'), coverSheet: $('coverSheet'),
-    exportDiaryBtn: $('exportDiaryBtn'), allDiariesLinkBtn: $('allDiariesLinkBtn'), deleteFromCoverBtn: $('deleteFromCoverBtn'),
+    exportDiaryBtn: $('exportDiaryBtn'), exportDiaryPdfBtn: $('exportDiaryPdfBtn'), allDiariesLinkBtn: $('allDiariesLinkBtn'), deleteFromCoverBtn: $('deleteFromCoverBtn'),
     signatureSheetBackdrop: $('signatureSheetBackdrop'), signatureSheet: $('signatureSheet'),
     signatureInput: $('signatureInput'), signatureSaveBtn: $('signatureSaveBtn'),
     coverThemeBtn: $('coverThemeBtn'), coverStickerBtn: $('coverStickerBtn'), coverStickerLayer: $('coverStickerLayer'),
@@ -123,7 +138,7 @@
     shareImgSheetBackdrop: $('shareImgSheetBackdrop'), shareImgSheet: $('shareImgSheet'), shareImgCanvas: $('shareImgCanvas'),
     shareImgFormatRow: $('shareImgFormatRow'), shareImgSendBtn: $('shareImgSendBtn'), shareImgDownloadBtn: $('shareImgDownloadBtn'),
     moodSuggestHint: $('moodSuggestHint'), moodSuggestValue: $('moodSuggestValue'),
-    streakFreezeCard: $('streakFreezeCard'), streakFreezeTitle: $('streakFreezeTitle'),
+    streakFreezeCard: $('streakFreezeCard'), streakFreezeTitle: $('streakFreezeTitle'), streakFreezeSub: $('streakFreezeSub'),
     wordCloud: $('wordCloud'), lengthTrendChart: $('lengthTrendChart'),
     fsHeadline: $('fsHeadline'), fsDate: $('fsDate'), fsBody: $('fsBody'), fsMicFab: $('fsMicFab'),
     fsContent: $('fsContent'), fsStickerLayer: $('fsStickerLayer'), fsBodyZone: $('fsBodyZone'),
@@ -150,7 +165,7 @@
     darkModeToggle: $('darkModeToggle'),
     langOptions: $('langOptions'), diaryFontOptions: $('diaryFontOptions'),
     reminderToggle: $('reminderToggle'), reminderRowSub: $('reminderRowSub'), reminderTime: $('reminderTime'),
-    exportAllBtn: $('exportAllBtn'), backupJsonBtn: $('backupJsonBtn'), restoreJsonBtn: $('restoreJsonBtn'),
+    exportAllBtn: $('exportAllBtn'), exportAllPdfBtn: $('exportAllPdfBtn'), backupJsonBtn: $('backupJsonBtn'), restoreJsonBtn: $('restoreJsonBtn'),
     restoreFileInput: $('restoreFileInput'),
 
     lockScreen: $('lockScreen'), lockTitle: $('lockTitle'), lockSub: $('lockSub'), lockDots: $('lockDots'),
@@ -238,12 +253,14 @@
         });
         p.voiceClips.forEach(clip => {
           if (clip.widthPct === undefined) clip.widthPct = clip.width ? (clip.width / 180 * 100) : 78;
+          if (clip.playbackFilter === undefined) clip.playbackFilter = 'off';
         });
         if (!Array.isArray(p.photos)) p.photos = [];
         if (!Array.isArray(p.tags)) p.tags = [];
         if (p.bookmarked === undefined) p.bookmarked = false;
         if (p.capsuleUntil === undefined) p.capsuleUntil = null; // ISO date string, or null if not a time capsule
         if (p.suggestedMood === undefined) p.suggestedMood = null; // rough voice-based guess, cleared once a mood is confirmed
+        if (p.suggestedMoodConfidence === undefined) p.suggestedMoodConfidence = null; // 'low'|'medium'|'high'
         p.photos.forEach(ph => { if (ph.sizePct === undefined) ph.sizePct = 45; });
       });
     });
@@ -275,6 +292,7 @@
     // streak freeze: one free "miss a day, keep your streak" per calendar month
     if (settings.streakFreezeMonth === undefined) settings.streakFreezeMonth = ''; // 'YYYY-MM' of month it was last used, '' if unused this month
     if (!Array.isArray(settings.streakFreezeDatesUsed)) settings.streakFreezeDatesUsed = []; // dates (toDateString) that were auto-covered by a freeze
+    if (settings.weeklyGoalTarget === undefined) settings.weeklyGoalTarget = 4; // days per week the user wants to write on
   }
 
   // ---------- profile helpers (name / photo shown across Home, Profile, Insights, Settings) ----------
@@ -340,6 +358,7 @@
     renderWeeklyChart();
     renderMoodSummary();
     renderBadges();
+    renderGlanceWidget();
     showScreen('home');
     if (settings.reminderOn && 'Notification' in window && Notification.permission === 'granted') {
       scheduleReminder();
@@ -397,12 +416,192 @@
     el.moodSummary.textContent = `This week you were mostly ${entries[0][0]}`;
   }
 
+  // ---------- home glance widget (streak / latest mood / week goal at a glance) ----------
+  function renderGlanceWidget() {
+    if (!el.glanceWidget) return;
+    const dateSet = getAllDatesWithEntries();
+    el.glanceStreakNum.textContent = computeCurrentStreak(dateSet);
+
+    let latestMood = '—';
+    let latestDate = null;
+    diaries.forEach(d => d.pages.forEach(p => {
+      if (p.mood && (!latestDate || new Date(p.date) > latestDate)) { latestDate = new Date(p.date); latestMood = p.mood; }
+    }));
+    el.glanceMoodEmoji.textContent = latestMood;
+
+    const target = settings.weeklyGoalTarget || 4;
+    const now = new Date();
+    const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay()); startOfWeek.setHours(0, 0, 0, 0);
+    const daysThisWeek = new Set();
+    diaries.forEach(d => d.pages.forEach(p => {
+      const pd = new Date(p.date);
+      if (pd >= startOfWeek && pd <= now) daysThisWeek.add(pd.toDateString());
+    }));
+    el.glanceGoalNum.textContent = `${daysThisWeek.size}/${target}`;
+  }
+
+  // ---------- weekly/monthly recap ("is week/month kaisa raha") ----------
+  // Fully on-device, rule-based recap generated from real mood/word/streak data —
+  // not an LLM-generated summary. It picks the day with the most positive mood, the
+  // day with the most writing, and a couple of stats, then stitches together a
+  // template sentence. Good enough for a quick "how was my week" glance without
+  // needing a server call.
+  const RECAP_MOOD_WORD = { '😊': 'happy', '🥳': 'excited', '😐': 'reflective', '😢': 'low', '😡': 'frustrated', '😴': 'tired', '😰': 'anxious' };
+  const RECAP_POSITIVE = ['😊', '🥳'];
+
+  function generateRecap(range) {
+    const now = new Date();
+    const start = new Date(now);
+    if (range === 'month') { start.setDate(1); start.setHours(0, 0, 0, 0); }
+    else { start.setDate(now.getDate() - now.getDay()); start.setHours(0, 0, 0, 0); }
+
+    const pagesInRange = [];
+    diaries.forEach(d => d.pages.forEach(p => {
+      const pd = new Date(p.date);
+      if (pd >= start && pd <= now) pagesInRange.push(p);
+    }));
+
+    if (!pagesInRange.length) {
+      return { headline: range === 'month' ? "No entries yet this month." : "No entries yet this week.", body: 'Write a page or two and your recap will show up here.', stats: [] };
+    }
+
+    // mood counts + best day
+    const moodCountByDay = new Map(); // dateString -> { counts, dayLabel }
+    const moodCounts = {};
+    let totalWords = 0;
+    pagesInRange.forEach(p => {
+      totalWords += (p.text || '').trim().split(/\s+/).filter(Boolean).length;
+      if (p.mood) {
+        moodCounts[p.mood] = (moodCounts[p.mood] || 0) + 1;
+        const key = new Date(p.date).toDateString();
+        if (!moodCountByDay.has(key)) moodCountByDay.set(key, {});
+        const dayCounts = moodCountByDay.get(key);
+        dayCounts[p.mood] = (dayCounts[p.mood] || 0) + 1;
+      }
+    });
+
+    const topMoodEntry = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0];
+    const topMood = topMoodEntry ? topMoodEntry[0] : null;
+
+    // find the day with the most positive-mood entries
+    let bestDay = null, bestDayScore = 0;
+    moodCountByDay.forEach((counts, dateStr) => {
+      const posScore = RECAP_POSITIVE.reduce((s, m) => s + (counts[m] || 0), 0);
+      if (posScore > bestDayScore) { bestDayScore = posScore; bestDay = dateStr; }
+    });
+
+    // day with the longest entry (most words written)
+    let longestDay = null, longestWords = 0;
+    pagesInRange.forEach(p => {
+      const words = (p.text || '').trim().split(/\s+/).filter(Boolean).length;
+      if (words > longestWords) { longestWords = words; longestDay = p.date; }
+    });
+
+    const uniqueDays = new Set(pagesInRange.map(p => new Date(p.date).toDateString())).size;
+    const rangeLabel = range === 'month' ? 'This month' : 'This week';
+
+    let headline;
+    if (topMood) {
+      const moodWord = RECAP_MOOD_WORD[topMood] || 'reflective';
+      headline = `${rangeLabel} you were mostly ${moodWord} ${topMood}`;
+      if (bestDay) {
+        const d = new Date(bestDay);
+        headline += ` — ${d.toLocaleDateString('en-IN', { weekday: 'long' })} stood out.`;
+      } else {
+        headline += '.';
+      }
+    } else {
+      headline = `${rangeLabel} you wrote ${uniqueDays} day${uniqueDays === 1 ? '' : 's'}.`;
+    }
+
+    const bodyParts = [];
+    bodyParts.push(`You wrote on ${uniqueDays} day${uniqueDays === 1 ? '' : 's'}, ${totalWords.toLocaleString('en-IN')} words in total.`);
+    if (longestDay) {
+      bodyParts.push(`Your longest entry was on ${new Date(longestDay).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })}.`);
+    }
+    const moodList = Object.entries(moodCounts).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+    if (moodList.length) bodyParts.push(`Moods logged: ${moodList.join(' ')}`);
+
+    const stats = [
+      { label: `${pagesInRange.length} ${pagesInRange.length === 1 ? 'entry' : 'entries'}` },
+      { label: `${uniqueDays}/${range === 'month' ? new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() : 7} days written` },
+    ];
+
+    return { headline, body: bodyParts.join(' '), stats };
+  }
+
+  let currentRecapRange = 'week';
+  function renderRecapCard() {
+    if (!el.recapCard) return;
+    const recap = generateRecap(currentRecapRange);
+    el.recapHeadline.textContent = recap.headline;
+    el.recapBody.textContent = recap.body;
+    el.recapStatsRow.innerHTML = recap.stats.map(s => `<span class="recap-stat-chip">${escapeHtml(s.label)}</span>`).join('');
+  }
+
+  // ---------- weekly goal progress ring ----------
+  const WEEKLY_GOAL_RING_CIRCUMFERENCE = 169.6; // 2 * PI * r(27), matches the SVG circle
+  function renderWeeklyGoalCard() {
+    if (!el.weeklyGoalCard) return;
+    const target = settings.weeklyGoalTarget || 4;
+    const now = new Date();
+    const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay()); startOfWeek.setHours(0, 0, 0, 0);
+    const daysThisWeek = new Set();
+    diaries.forEach(d => d.pages.forEach(p => {
+      const pd = new Date(p.date);
+      if (pd >= startOfWeek && pd <= now) daysThisWeek.add(pd.toDateString());
+    }));
+    const written = Math.min(daysThisWeek.size, target);
+    const pct = target > 0 ? written / target : 0;
+    const offset = WEEKLY_GOAL_RING_CIRCUMFERENCE * (1 - pct);
+    el.weeklyGoalRingFill.style.strokeDashoffset = offset.toFixed(1);
+    el.weeklyGoalRingLabel.textContent = `${daysThisWeek.size}/${target}`;
+    el.weeklyGoalTitle.textContent = `${target} day${target === 1 ? '' : 's'} this week`;
+    el.weeklyGoalSub.textContent = daysThisWeek.size >= target
+      ? "You've hit your goal for this week! 🎉"
+      : `${target - daysThisWeek.size} more day${target - daysThisWeek.size === 1 ? '' : 's'} to hit your goal`;
+  }
+
+  function promptEditWeeklyGoal() {
+    const input = prompt('How many days a week do you want to write? (1-7)', String(settings.weeklyGoalTarget || 4));
+    if (input === null) return;
+    const n = Math.round(Number(input));
+    if (!Number.isFinite(n) || n < 1 || n > 7) { showToast('Enter a number between 1 and 7.'); return; }
+    settings.weeklyGoalTarget = n;
+    persistSettings();
+    renderWeeklyGoalCard();
+    showToast('Weekly goal updated');
+  }
+
   // ---------- achievement badges ----------
-  function renderBadges() {
+  // ---------- mood streak (consecutive days logged with a positive mood) ----------
+  function computeCurrentMoodStreak(positiveMoods) {
+    // most recent mood per day, walking backwards from today; stops at the first day
+    // with no entry OR an entry whose mood isn't in the positive set
+    const dayMood = new Map();
+    diaries.forEach(d => d.pages.forEach(p => {
+      if (!p.mood) return;
+      const key = new Date(p.date).toDateString();
+      dayMood.set(key, p.mood); // last one wins if multiple entries that day
+    }));
+    let streak = 0;
+    const cur = new Date();
+    while (true) {
+      const key = cur.toDateString();
+      if (dayMood.get(key) && positiveMoods.includes(dayMood.get(key))) { streak++; cur.setDate(cur.getDate() - 1); }
+      else break;
+    }
+    return streak;
+  }
+
+  // shared badge computation — used by both the Home strip and the Profile screen so
+  // the two never drift out of sync with each other.
+  function computeBadges() {
     let totalPages = 0;
     diaries.forEach(d => totalPages += d.pages.length);
     const dateSet = getAllDatesWithEntries();
     const longest = computeLongestStreak(dateSet);
+    const moodStreak = computeCurrentMoodStreak(['😊', '🥳']);
 
     const badges = [];
     if (totalPages >= 1) badges.push({ icon: '📝', label: 'First page' });
@@ -411,7 +610,13 @@
     if (longest >= 7) badges.push({ icon: '🔥', label: '7 day streak' });
     if (longest >= 30) badges.push({ icon: '💎', label: '30 day streak' });
     if (diaries.length >= 3) badges.push({ icon: '🗂️', label: '3 diaries' });
+    if (moodStreak >= 3) badges.push({ icon: '🌤️', label: `${moodStreak} day positive streak` });
+    if (moodStreak >= 5) badges.push({ icon: '✨', label: '5 day positive streak' });
+    return badges;
+  }
 
+  function renderBadges() {
+    const badges = computeBadges();
     if (!badges.length) { el.badgesStrip.hidden = true; return; }
     el.badgesStrip.hidden = false;
     el.badgesStrip.innerHTML = badges.map(b => `<span class="badge-pill"><span class="badge-icon">${b.icon}</span>${b.label}</span>`).join('');
@@ -539,6 +744,21 @@
     el.streakFreezeTitle.textContent = available
       ? '1 streak freeze available'
       : 'Streak freeze used this month';
+
+    // proactive nudge: if today has no entry yet and there's an active streak going
+    // into today, gently flag it instead of only the generic description
+    if (el.streakFreezeSub) {
+      const dateSet = getAllDatesWithEntries();
+      const today = new Date();
+      const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+      const hasToday = dateSet.has(today.toDateString());
+      const hadStreakYesterday = computeCurrentStreak(dateSet) > 0 && dateSet.has(yesterday.toDateString());
+      if (!hasToday && hadStreakYesterday) {
+        el.streakFreezeSub.textContent = "🧊 Aaj mat bhoolna — you still have a streak going. Write a line before the day ends.";
+      } else {
+        el.streakFreezeSub.textContent = "Miss a day and we'll auto-protect your streak once a month.";
+      }
+    }
   }
 
   // ---------- mood heatmap (last 28 days) ----------
@@ -576,11 +796,23 @@
     diaries.forEach(d => d.pages.forEach(p => {
       const pd = new Date(p.date);
       if (pd.getDate() === today.getDate() && pd.getMonth() === today.getMonth() && pd.getFullYear() < today.getFullYear()) {
-        if (!found || pd > new Date(found.page.date)) found = { page: p, diaryName: d.name };
+        if (!found || pd > new Date(found.page.date)) found = { page: p, diaryName: d.name, label: 'On this day' };
       }
     }));
+    // no exact same-date match from a past year — fall back to a "this month, back then"
+    // flashback so the card still has something meaningful most of the month, not just
+    // on the one exact anniversary date
+    if (!found) {
+      diaries.forEach(d => d.pages.forEach(p => {
+        const pd = new Date(p.date);
+        if (pd.getMonth() === today.getMonth() && pd.getFullYear() < today.getFullYear()) {
+          if (!found || pd > new Date(found.page.date)) found = { page: p, diaryName: d.name, label: `${pd.toLocaleDateString('en-IN', { month: 'long' })}, ${pd.getFullYear()}` };
+        }
+      }));
+    }
     if (!found) { el.memoryCard.hidden = true; return; }
     el.memoryCard.hidden = false;
+    if (el.memoryLabel) el.memoryLabel.textContent = found.label;
     el.memoryHeadline.textContent = found.page.headline || found.diaryName;
     el.memorySnippet.textContent = (found.page.text || '').slice(0, 90) + ((found.page.text || '').length > 90 ? '…' : '');
     el.memoryDate.textContent = formatDateShort(new Date(found.page.date));
@@ -642,7 +874,7 @@
       }).join('');
 
       return `
-      <div class="diary-grid-card" data-id="${d.id}" data-cover-theme="${d.coverTheme || 'classic'}">
+      <div class="diary-grid-card" data-id="${d.id}" data-cover-theme="${d.coverTheme || 'classic'}" data-mood-tint="${computeMoodTintForDiary(d)}">
         ${d.lock ? `<span class="diary-grid-card-lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>` : ''}
         ${d.pages.some(isCapsuleLocked) ? `<span class="diary-grid-card-capsule" title="Contains a sealed time capsule page">🧊</span>` : ''}
         <div class="diary-grid-card-stickers">${stickerHtml}</div>
@@ -842,6 +1074,17 @@
 
   // ============ COVER SCREEN ============
 
+  // Maps a diary's most recent mood emoji to a cover tint keyword. This is a light,
+  // decorative touch only — "rainy mood → soft blue wash" per the original ask —
+  // never changes the underlying cover theme the person picked.
+  const MOOD_TO_COVER_TINT = { '😊': 'happy', '🥳': 'happy', '😢': 'sad', '😐': 'calm', '😰': 'anxious', '😡': 'anxious', '😴': 'rainy' };
+  function computeMoodTintForDiary(diary) {
+    const moodPages = diary.pages.filter(p => p.mood);
+    if (!moodPages.length) return '';
+    const latest = moodPages[moodPages.length - 1];
+    return MOOD_TO_COVER_TINT[latest.mood] || '';
+  }
+
   function openCoverScreen(diaryId, opts) {
     activeDiaryId = diaryId;
     const diary = getDiary(diaryId);
@@ -851,6 +1094,7 @@
     el.bookCoverMeta.textContent = `${diary.pages.length} ${diary.pages.length === 1 ? 'page' : 'pages'} · ${formatDateShort(new Date(diary.createdAt))}`;
     el.bookCoverSignature.textContent = diary.signature || 'made by Yash';
     el.bookCover.dataset.coverTheme = diary.coverTheme || 'classic';
+    el.bookCover.dataset.moodTint = computeMoodTintForDiary(diary);
     renderCoverStickers(diary);
     showScreen('cover', opts);
   }
@@ -925,7 +1169,20 @@
 
   // ============ COVER STICKERS (drag + resize, placed on the book cover) ============
 
+  // applies the locked look + a title tooltip to any sticker-options grid, based on
+  // streak-milestone unlocks; used for both the cover and page sticker sheets
+  function applyStickerLockUI(containerEl) {
+    if (!containerEl) return;
+    containerEl.querySelectorAll('.sticker-option').forEach(btn => {
+      const key = btn.dataset.sticker;
+      const unlocked = isStickerUnlocked(key);
+      btn.classList.toggle('locked', !unlocked);
+      btn.title = unlocked ? '' : `Unlocks at ${STICKER_UNLOCK_REQUIREMENT[key]} day streak`;
+    });
+  }
+
   function openCoverStickerSheet() {
+    applyStickerLockUI(el.coverStickerOptions);
     el.coverStickerSheetBackdrop.hidden = false;
     el.coverStickerSheet.hidden = false;
     requestAnimationFrame(() => {
@@ -940,6 +1197,10 @@
   }
 
   function addStickerToCover(stickerKey) {
+    if (!isStickerUnlocked(stickerKey)) {
+      showToast(`Keep a ${STICKER_UNLOCK_REQUIREMENT[stickerKey]}-day streak to unlock this sticker.`);
+      return;
+    }
     const diary = currentDiary();
     if (!diary) return;
     if (!Array.isArray(diary.coverStickers)) diary.coverStickers = [];
@@ -1401,10 +1662,24 @@
     el.fsBody.style.fontFamily = fam;
   }
 
+  function isFontUnlocked(fontKey) {
+    const requirement = FONT_UNLOCK_REQUIREMENT[fontKey];
+    if (!requirement) return true; // not a gated font
+    const longest = computeLongestStreak(getAllDatesWithEntries());
+    return longest >= requirement;
+  }
+
   function openFontSheet() {
     const diary = currentDiary();
     document.querySelectorAll('.font-option').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.font === diary.font);
+      const key = btn.dataset.font;
+      btn.classList.toggle('active', key === diary.font);
+      const unlocked = isFontUnlocked(key);
+      btn.classList.toggle('locked', !unlocked);
+      if (FONT_UNLOCK_REQUIREMENT[key]) {
+        const subEl = btn.querySelector('small');
+        if (subEl) subEl.textContent = unlocked ? 'Unlocked!' : `Unlocks at ${FONT_UNLOCK_REQUIREMENT[key]} day streak`;
+      }
     });
     el.fontSheetBackdrop.hidden = false;
     el.fontSheet.hidden = false;
@@ -1421,6 +1696,11 @@
   }
 
   function selectFont(fontKey) {
+    if (!isFontUnlocked(fontKey)) {
+      const req = FONT_UNLOCK_REQUIREMENT[fontKey];
+      showToast(`Keep a ${req}-day streak to unlock this font.`);
+      return;
+    }
     const diary = currentDiary();
     diary.font = fontKey;
     persist();
@@ -1525,8 +1805,17 @@
     'moon': 'assets/stickers/moon.svg',
     'sun': 'assets/stickers/sun.svg',
   };
+  // two stickers are held back as streak-milestone rewards (same unlock model as
+  // fonts) — everything else stays freely available like before
+  const STICKER_UNLOCK_REQUIREMENT = { moon: 14, sun: 21 };
+  function isStickerUnlocked(key) {
+    const requirement = STICKER_UNLOCK_REQUIREMENT[key];
+    if (!requirement) return true;
+    return computeLongestStreak(getAllDatesWithEntries()) >= requirement;
+  }
 
   function openStickerSheet() {
+    applyStickerLockUI(el.stickerOptions);
     el.stickerSheetBackdrop.hidden = false;
     el.stickerSheet.hidden = false;
     requestAnimationFrame(() => {
@@ -1541,6 +1830,10 @@
   }
 
   function addStickerToCurrentPage(stickerKey) {
+    if (!isStickerUnlocked(stickerKey)) {
+      showToast(`Keep a ${STICKER_UNLOCK_REQUIREMENT[stickerKey]}-day streak to unlock this sticker.`);
+      return;
+    }
     const diary = currentDiary();
     if (!diary) return;
     const idx = themeSheetTargetPage();
@@ -1710,6 +2003,58 @@
 
   const WAVE_BAR_COUNT = 22;
 
+  // ---- voice playback filters ----
+  // Real Web Audio DSP applied at playback time only — the original recording is
+  // never modified or re-saved. "Calm" slows the clip slightly and rolls off some
+  // high frequencies (a warmer, mellower tone); "energetic" speeds it up slightly
+  // and boosts high frequencies (a brighter, livelier tone). "Off" is the untouched
+  // original. One shared AudioContext is reused across clips.
+  let sharedAudioCtx = null;
+  function getSharedAudioCtx() {
+    if (!sharedAudioCtx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      sharedAudioCtx = new Ctx();
+    }
+    return sharedAudioCtx;
+  }
+
+  const VOICE_FILTER_CYCLE = ['off', 'calm', 'energetic'];
+  const VOICE_FILTER_ICON = { off: '🎙️', calm: '🌙', energetic: '⚡' };
+  const VOICE_FILTER_LABEL = { off: 'Original', calm: 'Calm', energetic: 'Energetic' };
+
+  // sets up (once per audio element) a Web Audio graph: source -> lowshelf/highshelf
+  // filter -> destination, and returns a function to switch modes live.
+  function attachVoiceFilterGraph(audioEl) {
+    const ctx = getSharedAudioCtx();
+    if (!ctx) return null; // Web Audio unsupported — filter toggle will be a no-op
+    let source;
+    try {
+      source = ctx.createMediaElementSource(audioEl);
+    } catch {
+      return null; // already attached elsewhere, or blocked — fail quietly
+    }
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highshelf';
+    filter.frequency.value = 3000;
+    source.connect(filter);
+    filter.connect(ctx.destination);
+
+    return function applyMode(mode) {
+      if (ctx.state === 'suspended') ctx.resume();
+      if (mode === 'calm') {
+        audioEl.playbackRate = 0.92;
+        filter.gain.setTargetAtTime(-9, ctx.currentTime, 0.05); // roll off highs → warmer
+      } else if (mode === 'energetic') {
+        audioEl.playbackRate = 1.12;
+        filter.gain.setTargetAtTime(6, ctx.currentTime, 0.05); // boost highs → brighter
+      } else {
+        audioEl.playbackRate = 1.0;
+        filter.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+      }
+    };
+  }
+
   function renderVoiceClipsForSheet(layerEl, page, pageIdx, opts) {
     opts = opts || {};
     const container = layerEl;
@@ -1773,12 +2118,32 @@
       });
       node.appendChild(removeBtn);
 
+      const filterBtn = document.createElement('button');
+      filterBtn.className = 'voice-clip-filter-btn';
+      let filterMode = clip.playbackFilter || 'off';
+      filterBtn.textContent = VOICE_FILTER_ICON[filterMode];
+      filterBtn.title = VOICE_FILTER_LABEL[filterMode] + ' tone';
+      filterBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const nextIdx = (VOICE_FILTER_CYCLE.indexOf(filterMode) + 1) % VOICE_FILTER_CYCLE.length;
+        filterMode = VOICE_FILTER_CYCLE[nextIdx];
+        clip.playbackFilter = filterMode;
+        persist();
+        filterBtn.textContent = VOICE_FILTER_ICON[filterMode];
+        filterBtn.title = VOICE_FILTER_LABEL[filterMode] + ' tone';
+        showToast(filterMode === 'off' ? 'Original voice' : `${VOICE_FILTER_LABEL[filterMode]} tone`);
+        if (applyFilterMode) applyFilterMode(filterMode);
+      });
+      node.appendChild(filterBtn);
+
       const handle = document.createElement('div');
       handle.className = 'voice-clip-resize-handle';
       node.appendChild(handle);
 
       let audioEl = clip.dataUrl ? new Audio(clip.dataUrl) : null;
       let rafId = null;
+      let applyFilterMode = audioEl ? attachVoiceFilterGraph(audioEl) : null;
+      if (applyFilterMode && filterMode !== 'off') applyFilterMode(filterMode);
 
       function stopProgressLoop() {
         if (rafId) cancelAnimationFrame(rafId);
@@ -1847,7 +2212,7 @@
     let startX = 0, startY = 0, startLeftPct = 0, startTopPct = 0, startWidth = 0;
 
     node.addEventListener('pointerdown', (e) => {
-      if (e.target === handle || e.target.closest('.voice-clip-play') || e.target.closest('.voice-clip-remove')) return;
+      if (e.target === handle || e.target.closest('.voice-clip-play') || e.target.closest('.voice-clip-remove') || e.target.closest('.voice-clip-filter-btn')) return;
       e.stopPropagation();
       dragging = true;
       node.classList.add('dragging');
@@ -1999,8 +2364,13 @@
           id: uid(), x: 8 + Math.random() * 10, y: 6 + Math.random() * 8, widthPct: 78,
           dataUrl, duration: durationSec, waveform,
         });
-        const suggestion = suggestMoodFromWaveform(waveform, durationSec);
-        if (suggestion && !page.mood) page.suggestedMood = suggestion;
+        const voiceGuess = suggestMoodFromWaveform(waveform, durationSec);
+        const textGuess = suggestMoodFromText(page.text);
+        const combined = combineMoodSuggestions(voiceGuess, textGuess);
+        if (combined && !page.mood) {
+          page.suggestedMood = combined.mood;
+          page.suggestedMoodConfidence = combined.confidence;
+        }
         persist();
         rerenderVoiceClips(info.target, page, info.idx);
         showToast('Voice note added — drag to place it');
@@ -2012,18 +2382,57 @@
   // This is a rough, on-device guess from loudness/pace only — never a claim about how
   // the person actually feels. It only ever pre-fills a suggestion the person can confirm,
   // change, or ignore in the mood sheet.
+  // Returns { mood, confidence } or null. confidence is 'low'|'medium'|'high', purely
+  // derived from how strongly the signal matched a bucket — not a real certainty score.
   function suggestMoodFromWaveform(waveform, durationSec) {
     if (!waveform || !waveform.length || durationSec < 1.2) return null;
     const avg = waveform.reduce((a, b) => a + b, 0) / waveform.length;
     const variance = waveform.reduce((a, b) => a + (b - avg) * (b - avg), 0) / waveform.length;
-    const pace = waveform.length / durationSec; // proxy only, bar count is fixed so this mostly reflects duration
 
-    if (avg > 0.55 && variance > 0.045) return '🥳';
-    if (avg > 0.5 && variance <= 0.045) return '😊';
-    if (avg < 0.28 && variance < 0.02) return '😴';
-    if (avg < 0.35 && durationSec > 20) return '😐';
-    if (variance > 0.06 && avg > 0.4) return '😰';
+    const bucket = (mood, strength) => ({ mood, confidence: strength > 0.62 ? 'high' : strength > 0.5 ? 'medium' : 'low' });
+
+    if (avg > 0.55 && variance > 0.045) return bucket('🥳', avg);
+    if (avg > 0.5 && variance <= 0.045) return bucket('😊', avg);
+    if (avg < 0.28 && variance < 0.02) return bucket('😴', 1 - avg);
+    if (avg < 0.35 && durationSec > 20) return bucket('😐', 1 - avg);
+    if (variance > 0.06 && avg > 0.4) return bucket('😰', variance);
     return null; // not confident enough — no suggestion, mood sheet shows normal picker
+  }
+
+  // ---- text-based mood keyword tagging ----
+  // Simple on-device keyword match over the transcribed/typed text (English + common
+  // Hinglish words). This is a heuristic, not real sentiment analysis — it only ever
+  // produces a suggestion the person can confirm or change, same as the voice guess.
+  const MOOD_KEYWORDS = {
+    '🥳': ['excited', 'thrilled', 'amazing', 'best day', 'celebration', 'party', 'khushi khushi', 'mast', 'zabardast', 'shandaar'],
+    '😊': ['happy', 'good day', 'grateful', 'thankful', 'nice', 'great', 'khush', 'accha laga', 'badhiya', 'maza aaya'],
+    '😢': ['sad', 'cried', 'crying', 'upset', 'heartbroken', 'miss', 'udaas', 'dukhi', 'rona aaya', 'akela'],
+    '😡': ['angry', 'furious', 'annoyed', 'frustrated', 'irritated', 'gussa', 'chidchida', 'bhad gaya'],
+    '😴': ['tired', 'exhausted', 'sleepy', 'drained', 'thak gaya', 'thaki', 'neend'],
+    '😰': ['anxious', 'worried', 'nervous', 'stressed', 'scared', 'tension', 'pareshan', 'darr', 'chinta'],
+    '😐': ['okay', 'fine', 'normal', 'nothing much', 'thik thak', 'aisa hi', 'kuch khaas nahi'],
+  };
+  function suggestMoodFromText(text) {
+    if (!text || text.trim().length < 8) return null;
+    const lower = text.toLowerCase();
+    const scores = {};
+    Object.entries(MOOD_KEYWORDS).forEach(([mood, words]) => {
+      words.forEach(w => { if (lower.includes(w)) scores[mood] = (scores[mood] || 0) + 1; });
+    });
+    const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+    if (!ranked.length) return null;
+    return { mood: ranked[0][0], confidence: ranked[0][1] >= 2 ? 'high' : 'medium' };
+  }
+
+  // Combines the voice-waveform guess and the text-keyword guess into one suggestion.
+  // If both agree, confidence is boosted to high. If they disagree, the text guess wins
+  // (text content is a stronger signal than tone/pace alone), but confidence drops to low.
+  function combineMoodSuggestions(fromVoice, fromText) {
+    if (fromVoice && fromText) {
+      if (fromVoice.mood === fromText.mood) return { mood: fromVoice.mood, confidence: 'high' };
+      return { mood: fromText.mood, confidence: 'low' };
+    }
+    return fromText || fromVoice || null;
   }
 
   function blobToDataUrl(blob) {
@@ -2100,6 +2509,13 @@
     if (!diary.pages[idx]) { showToast('Add a page first.'); return; }
     const page = diary.pages[idx];
 
+    // if there's no suggestion yet (e.g. entry was typed, no voice note), try a
+    // text-only keyword guess now so typed entries also get a mood pre-fill
+    if (!page.mood && !page.suggestedMood) {
+      const textGuess = suggestMoodFromText(page.text);
+      if (textGuess) { page.suggestedMood = textGuess.mood; page.suggestedMoodConfidence = textGuess.confidence; persist(); }
+    }
+
     document.querySelectorAll('.mood-option').forEach(btn => {
       btn.classList.toggle('active', (btn.dataset.mood || '') === (page.mood || ''));
     });
@@ -2107,7 +2523,10 @@
     if (el.moodSuggestHint) {
       const suggestion = !page.mood && page.suggestedMood;
       el.moodSuggestHint.hidden = !suggestion;
-      if (suggestion) el.moodSuggestValue.textContent = (MOOD_LABELS_FOR_HINT[page.suggestedMood] || 'something') + ' ' + page.suggestedMood;
+      if (suggestion) {
+        const confidenceNote = page.suggestedMoodConfidence === 'low' ? ' (not sure)' : '';
+        el.moodSuggestValue.textContent = (MOOD_LABELS_FOR_HINT[page.suggestedMood] || 'something') + ' ' + page.suggestedMood + confidenceNote;
+      }
     }
 
     el.moodSheetBackdrop.hidden = false;
@@ -2410,7 +2829,7 @@
 
     const content = [page.headline, page.text].filter(Boolean).join('. ');
     ttsUtterance = new SpeechSynthesisUtterance(content);
-    ttsUtterance.lang = settings.speechLang || 'en-IN';
+    ttsUtterance.lang = settings.speechLang === 'hinglish' ? 'en-IN' : (settings.speechLang || 'en-IN');
     ttsUtterance.rate = 0.95;
     ttsUtterance.onend = () => el.fsTtsBtn.classList.remove('speaking');
     ttsUtterance.onerror = () => el.fsTtsBtn.classList.remove('speaking');
@@ -2578,7 +2997,11 @@
 
     recognitionTarget = target;
     recognizer = new SpeechRecognitionImpl();
-    recognizer.lang = settings.speechLang || (window.CONFIG && CONFIG.SPEECH_LANG) || 'en-IN';
+    const savedLang = settings.speechLang || (window.CONFIG && CONFIG.SPEECH_LANG) || 'en-IN';
+    // 'hinglish' isn't a real BCP-47 tag — the on-device speech engine has no true
+    // mixed-language mode, so this maps to the English (India) engine, which tends
+    // to romanize Hindi words reasonably well when they're mixed into English speech.
+    recognizer.lang = savedLang === 'hinglish' ? 'en-IN' : savedLang;
     recognizer.interimResults = false;
     recognizer.maxAlternatives = 1;
     recognizer.continuous = false;
@@ -2627,6 +3050,36 @@
   }
 
   // ============ SEARCH ============
+  // "Smart search" — not real semantic/embedding search (that needs a model this
+  // on-device app doesn't have), but a practical stand-in: topic keyword groups let
+  // "job ke baare mein" match "interview", "boss", "resign", etc. even when the exact
+  // word "job" never appears, plus mood-name search and word-stem overlap scoring so
+  // results are ranked by relevance instead of just filtered by exact substring.
+  const SEARCH_TOPIC_GROUPS = [
+    { key: 'job', words: ['job', 'work', 'office', 'career', 'interview', 'boss', 'resign', 'salary', 'naukri', 'kaam', 'company', 'meeting', 'promotion', 'colleague'] },
+    { key: 'family', words: ['family', 'mom', 'dad', 'mother', 'father', 'parents', 'brother', 'sister', 'family', 'ghar', 'papa', 'mummy', 'bhai', 'behen'] },
+    { key: 'love', words: ['love', 'relationship', 'boyfriend', 'girlfriend', 'crush', 'breakup', 'pyaar', 'ishq', 'partner', 'dating'] },
+    { key: 'health', words: ['health', 'sick', 'doctor', 'hospital', 'pain', 'tired', 'gym', 'workout', 'bimaar', 'tabiyat', 'exercise', 'sleep'] },
+    { key: 'money', words: ['money', 'paisa', 'salary', 'expensive', 'budget', 'saving', 'debt', 'loan', 'kharcha', 'rupees'] },
+    { key: 'travel', words: ['travel', 'trip', 'vacation', 'flight', 'hotel', 'journey', 'ghumne', 'safar', 'holiday'] },
+    { key: 'friends', words: ['friend', 'friends', 'dost', 'yaar', 'buddy', 'hangout'] },
+    { key: 'study', words: ['study', 'exam', 'college', 'school', 'padhai', 'test', 'assignment', 'university'] },
+  ];
+  const MOOD_SEARCH_NAMES = { '😊': ['happy', 'khush'], '🥳': ['excited', 'party'], '😢': ['sad', 'udaas'], '😡': ['angry', 'gussa'], '😴': ['tired', 'thak'], '😰': ['anxious', 'worried', 'pareshan'], '😐': ['okay', 'normal'] };
+
+  function expandQueryTerms(q) {
+    // returns a set of extra words to also look for, based on which topic groups the
+    // query touches (e.g. typing "job" also pulls in "interview", "boss", "resign"...)
+    const extra = new Set();
+    SEARCH_TOPIC_GROUPS.forEach(group => {
+      if (group.words.some(w => q.includes(w))) group.words.forEach(w => extra.add(w));
+    });
+    return extra;
+  }
+
+  function moodsMatchingQuery(q) {
+    return Object.entries(MOOD_SEARCH_NAMES).filter(([, names]) => names.some(n => q.includes(n))).map(([mood]) => mood);
+  }
 
   function runSearch(query) {
     const q = query.trim().toLowerCase();
@@ -2643,14 +3096,29 @@
     el.diaryList.hidden = true;
     el.searchResults.hidden = false;
 
+    const extraTerms = expandQueryTerms(q);
+    const moodMatches = moodsMatchingQuery(q);
+    const queryWords = q.split(/\s+/).filter(w => w.length > 2);
+
     const hits = [];
     diaries.forEach(d => {
       d.pages.forEach((p, idx) => {
-        const inHeadline = (p.headline || '').toLowerCase().includes(q);
-        const inText = (p.text || '').toLowerCase().includes(q);
-        if (inHeadline || inText) hits.push({ diary: d, page: p, idx });
+        const headline = (p.headline || '').toLowerCase();
+        const text = (p.text || '').toLowerCase();
+        const combined = headline + ' ' + text;
+
+        let score = 0;
+        if (headline.includes(q)) score += 5;
+        if (text.includes(q)) score += 3;
+        if (moodMatches.includes(p.mood)) score += 4;
+        queryWords.forEach(w => { if (combined.includes(w)) score += 1; });
+        extraTerms.forEach(w => { if (combined.includes(w)) score += 0.5; });
+
+        if (score > 0) hits.push({ diary: d, page: p, idx, score });
       });
     });
+
+    hits.sort((a, b) => b.score - a.score);
 
     if (!hits.length) {
       el.searchResults.innerHTML = '<p class="empty-note">No pages match that search.</p>';
@@ -2680,10 +3148,21 @@
 
   function snippetAround(text, q) {
     const lower = text.toLowerCase();
-    const i = lower.indexOf(q);
-    if (i === -1) return text.slice(0, 80);
+    let i = lower.indexOf(q);
+    let matchLen = q.length;
+    if (i === -1) {
+      // exact phrase not found (this hit matched via a related topic word or mood) —
+      // fall back to the first query word that does appear, so the snippet still
+      // centers on something relevant instead of just showing the start of the text
+      const words = q.split(/\s+/).filter(w => w.length > 2);
+      for (const w of words) {
+        const wi = lower.indexOf(w);
+        if (wi !== -1) { i = wi; matchLen = w.length; break; }
+      }
+    }
+    if (i === -1) return text.slice(0, 80) + (text.length > 80 ? '…' : '');
     const start = Math.max(0, i - 30);
-    const end = Math.min(text.length, i + q.length + 30);
+    const end = Math.min(text.length, i + matchLen + 30);
     return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
   }
 
@@ -2724,6 +3203,117 @@
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // ============ PDF EXPORT ============
+  // Uses jsPDF (loaded from CDN in index.html) to lay out each page like an actual
+  // diary page — headline, date + mood, body text — rather than just dumping raw
+  // text into a PDF. Falls back to a toast if the library failed to load (e.g. no
+  // network on first load before the script cached).
+
+  function pdfLibAvailable() {
+    return typeof window.jspdf !== 'undefined' && window.jspdf.jsPDF;
+  }
+
+  function buildDiaryPdf(diaryList, opts) {
+    opts = opts || {};
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const marginX = 56, marginTop = 72, marginBottom = 60;
+    const maxTextWidth = pageW - marginX * 2;
+    let first = true;
+
+    diaryList.forEach(diary => {
+      if (!first) doc.addPage();
+      first = false;
+      let y = marginTop;
+
+      // diary title page header
+      doc.setFont('times', 'bold');
+      doc.setFontSize(22);
+      doc.text(diary.name, marginX, y);
+      y += 26;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(120, 110, 90);
+      doc.text(`${diary.pages.length} page${diary.pages.length === 1 ? '' : 's'} · ${diary.signature || 'made by Yash'}`, marginX, y);
+      doc.setTextColor(30, 26, 18);
+      y += 30;
+      doc.setDrawColor(210, 195, 160);
+      doc.line(marginX, y, pageW - marginX, y);
+      y += 30;
+
+      diary.pages.forEach((p, i) => {
+        const headline = p.headline || `Page ${i + 1}`;
+        const dateLine = formatDateLong(new Date(p.date)) + (p.mood ? '   ' + p.mood : '');
+        const bodyLines = doc.splitTextToSize(p.text || '(no text)', maxTextWidth);
+
+        // estimate this entry's height to decide if it needs a fresh page
+        const headlineH = 22, dateH = 16, bodyLineH = 15;
+        const neededH = headlineH + dateH + (bodyLines.length * bodyLineH) + 30;
+        if (y + neededH > pageH - marginBottom) {
+          doc.addPage();
+          y = marginTop;
+        }
+
+        doc.setFont('times', 'bold');
+        doc.setFontSize(15);
+        doc.setTextColor(30, 26, 18);
+        doc.text(headline, marginX, y);
+        y += headlineH - 4;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9.5);
+        doc.setTextColor(140, 120, 90);
+        doc.text(dateLine, marginX, y);
+        y += dateH + 4;
+
+        doc.setFont('times', 'normal');
+        doc.setFontSize(11.5);
+        doc.setTextColor(40, 34, 24);
+        bodyLines.forEach(line => {
+          if (y > pageH - marginBottom) { doc.addPage(); y = marginTop; }
+          doc.text(line, marginX, y);
+          y += bodyLineH;
+        });
+        y += 24;
+
+        if (y < pageH - marginBottom) {
+          doc.setDrawColor(230, 220, 200);
+          doc.line(marginX, y - 12, pageW - marginX, y - 12);
+        }
+      });
+    });
+
+    return doc;
+  }
+
+  function exportDiaryAsPdf(diary) {
+    if (!pdfLibAvailable()) { showToast("PDF export isn't available right now — try again in a moment."); return; }
+    if (!diary.pages.length) { showToast('This diary has no pages yet.'); return; }
+    try {
+      const doc = buildDiaryPdf([diary]);
+      doc.save(`${diary.name.replace(/[^a-z0-9]+/gi, '-')}.pdf`);
+      showToast('PDF exported');
+    } catch (err) {
+      console.error(err);
+      showToast("Couldn't create the PDF.");
+    }
+  }
+
+  function exportAllDiariesAsPdf() {
+    if (!diaries.length) { showToast('No diaries yet.'); return; }
+    if (!pdfLibAvailable()) { showToast("PDF export isn't available right now — try again in a moment."); return; }
+    try {
+      const doc = buildDiaryPdf(diaries);
+      doc.save('voice-diary-export.pdf');
+      showToast('All diaries exported as PDF');
+    } catch (err) {
+      console.error(err);
+      showToast("Couldn't create the PDF.");
+    }
   }
 
   // ============ SHARE AS IMAGE (WhatsApp status / Instagram story) ============
@@ -2876,6 +3466,172 @@
     };
     if (blob) { doDownload(blob); return; }
     el.shareImgCanvas.toBlob(b => { if (b) doDownload(b); else showToast("Couldn't generate the image."); }, 'image/png');
+  }
+
+  // ============ YEAR IN REVIEW (Spotify-Wrapped style shareable stats card) ============
+  // Entirely computed from real on-device data — total entries, top mood, longest
+  // streak, most active month — laid out on the same canvas + share/download
+  // machinery as the single-page share card above.
+
+  function computeYearStats(year) {
+    const pages = [];
+    diaries.forEach(d => d.pages.forEach(p => {
+      if (new Date(p.date).getFullYear() === year) pages.push(p);
+    }));
+
+    let totalWords = 0;
+    const moodCounts = {};
+    const monthCounts = new Array(12).fill(0);
+    const daySet = new Set();
+    pages.forEach(p => {
+      totalWords += (p.text || '').trim().split(/\s+/).filter(Boolean).length;
+      if (p.mood) moodCounts[p.mood] = (moodCounts[p.mood] || 0) + 1;
+      const d = new Date(p.date);
+      monthCounts[d.getMonth()]++;
+      daySet.add(d.toDateString());
+    });
+
+    const topMoodEntry = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0];
+    const busiestMonthIdx = monthCounts.indexOf(Math.max(...monthCounts));
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+    // longest streak within the year specifically
+    let longestInYear = 0, run = 0;
+    for (let m = 0; m < 12; m++) {
+      for (let day = 1; day <= 31; day++) {
+        const d = new Date(year, m, day);
+        if (d.getMonth() !== m) break;
+        if (daySet.has(d.toDateString())) { run++; longestInYear = Math.max(longestInYear, run); }
+        else run = 0;
+      }
+    }
+
+    return {
+      year,
+      totalEntries: pages.length,
+      totalWords,
+      daysWritten: daySet.size,
+      topMood: topMoodEntry ? topMoodEntry[0] : null,
+      busiestMonth: pages.length ? monthNames[busiestMonthIdx] : null,
+      diaryCount: diaries.filter(d => d.pages.some(p => new Date(p.date).getFullYear() === year)).length,
+      longestStreak: longestInYear,
+    };
+  }
+
+  function drawYearReviewImage(year) {
+    const stats = computeYearStats(year);
+    const W = 1080, H = 1920;
+    const canvas = el.yearReviewCanvas;
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    // dark, celebratory gradient — deliberately different from the parchment share
+    // card so this reads as a distinct "wrapped" moment
+    const grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, '#241c3a');
+    grad.addColorStop(0.5, '#1b1430');
+    grad.addColorStop(1, '#120e22');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // soft decorative glow circles
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = '#f2c14e';
+    ctx.beginPath(); ctx.arc(W * 0.85, H * 0.12, 220, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#8a7fd1';
+    ctx.beginPath(); ctx.arc(W * 0.1, H * 0.85, 260, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    const padX = 96;
+    let y = 220;
+
+    ctx.fillStyle = '#c9bff2';
+    ctx.font = '600 32px Inter, sans-serif';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(`${stats.year} · YEAR IN REVIEW`, padX, y);
+    y += 100;
+
+    ctx.fillStyle = '#f6efe0';
+    ctx.font = '600 82px Fraunces, Georgia, serif';
+    ctx.fillText(`${stats.totalEntries}`, padX, y);
+    y += 60;
+    ctx.font = '500 34px Inter, sans-serif';
+    ctx.fillStyle = '#c9bff2';
+    ctx.fillText(stats.totalEntries === 1 ? 'entry written' : 'entries written', padX, y);
+    y += 140;
+
+    const statRows = [
+      [`${stats.daysWritten}`, 'days you showed up'],
+      [`${stats.totalWords.toLocaleString('en-IN')}`, 'words written'],
+      [`${stats.longestStreak}`, 'day longest streak'],
+    ];
+    if (stats.busiestMonth) statRows.push([stats.busiestMonth, 'was your busiest month']);
+    if (stats.topMood) statRows.push([stats.topMood, 'was your most-logged mood']);
+
+    statRows.forEach(([big, small]) => {
+      ctx.fillStyle = '#f6efe0';
+      ctx.font = '600 56px Fraunces, Georgia, serif';
+      ctx.fillText(big, padX, y);
+      y += 46;
+      ctx.fillStyle = '#a99edb';
+      ctx.font = '500 28px Inter, sans-serif';
+      ctx.fillText(small, padX, y);
+      y += 76;
+    });
+
+    ctx.font = '500 26px Inter, sans-serif';
+    ctx.fillStyle = '#a99edb';
+    ctx.fillText('made with Voice Diary', padX, H - 100);
+  }
+
+  function openYearReviewSheet() {
+    const year = new Date().getFullYear();
+    el.yearReviewTitle.textContent = `Your ${year} in Review`;
+    drawYearReviewImage(year);
+    el.yearReviewSheetBackdrop.hidden = false;
+    el.yearReviewSheet.hidden = false;
+    requestAnimationFrame(() => {
+      el.yearReviewSheetBackdrop.classList.add('show');
+      el.yearReviewSheet.classList.add('show');
+    });
+  }
+
+  function closeYearReviewSheet() {
+    el.yearReviewSheetBackdrop.classList.remove('show');
+    el.yearReviewSheet.classList.remove('show');
+    setTimeout(() => { el.yearReviewSheetBackdrop.hidden = true; el.yearReviewSheet.hidden = true; }, 350);
+  }
+
+  function shareYearReviewNow() {
+    el.yearReviewCanvas.toBlob(async (blob) => {
+      if (!blob) { showToast("Couldn't generate the image."); return; }
+      const file = new File([blob], 'voice-diary-year-in-review.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'My Year in Review' });
+        } catch (err) {
+          if (err && err.name !== 'AbortError') showToast("Couldn't share the image.");
+        }
+      } else {
+        downloadYearReviewImage(blob);
+        showToast('Image downloaded — share it from your gallery');
+      }
+    }, 'image/png');
+  }
+
+  function downloadYearReviewImage(blob) {
+    const doDownload = (b) => {
+      const url = URL.createObjectURL(b);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'voice-diary-year-in-review.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+    if (blob) { doDownload(blob); return; }
+    el.yearReviewCanvas.toBlob(b => { if (b) doDownload(b); else showToast("Couldn't generate the image."); }, 'image/png');
   }
 
   // ============ HISTORY SCREEN ============
@@ -3179,14 +3935,7 @@
     }
 
     // reuse the same badge logic as home
-    const badges = [];
-    if (totalPages >= 1) badges.push({ icon: '📝', label: 'First page' });
-    if (totalPages >= 10) badges.push({ icon: '📚', label: '10 pages' });
-    if (totalPages >= 50) badges.push({ icon: '🏆', label: '50 pages' });
-    const longest = computeLongestStreak(dateSet);
-    if (longest >= 7) badges.push({ icon: '🔥', label: '7 day streak' });
-    if (longest >= 30) badges.push({ icon: '💎', label: '30 day streak' });
-    if (diaries.length >= 3) badges.push({ icon: '🗂️', label: '3 diaries' });
+    const badges = computeBadges();
     el.profileBadgesStrip.innerHTML = badges.length
       ? badges.map(b => `<span class="badge-pill"><span class="badge-icon">${b.icon}</span>${b.label}</span>`).join('')
       : '<span class="notif-empty" style="padding:6px 0">No badges yet — keep writing!</span>';
@@ -3199,6 +3948,11 @@
     const items = [];
     const dateSet = getAllDatesWithEntries();
     const streak = computeCurrentStreak(dateSet);
+
+    // gentle nudge, shown first, if 2+ days have passed since the last entry
+    const nudge = buildReminderMessage();
+    if (nudge.startsWith("It's been")) items.push(`💌 ${nudge}`);
+
     if (streak >= 1) items.push(`🔥 You're on a ${streak} day streak — keep it going!`);
     diaries.forEach(d => {
       const last = d.pages[d.pages.length - 1];
@@ -3239,6 +3993,8 @@
     const streak = computeCurrentStreak(dateSet);
     el.insightsStreakText.textContent = `${streak} day${streak === 1 ? '' : 's'} streak`;
     renderStreakFreezeCard();
+    renderRecapCard();
+    renderWeeklyGoalCard();
 
     // weekly chart (reuse same counts logic as home)
     const counts = new Array(7).fill(0);
@@ -3853,6 +4609,26 @@
   }
 
   let reminderTimeoutId = null;
+
+  // Picks a smarter reminder message based on how many days have passed since the
+  // last entry. A plain daily nudge most days, but a warmer "gentle nudge" once 2+
+  // days have been missed, so the message actually reflects what's going on instead
+  // of always saying the same generic line.
+  function buildReminderMessage() {
+    const dateSet = getAllDatesWithEntries();
+    const today = new Date();
+    let daysSinceLastEntry = null;
+    for (let i = 0; i < 400; i++) {
+      const d = new Date(today); d.setDate(today.getDate() - i);
+      if (dateSet.has(d.toDateString())) { daysSinceLastEntry = i; break; }
+    }
+    if (daysSinceLastEntry === null) return "Time to write today's page.";
+    if (daysSinceLastEntry === 0) return "Add one more line before the day ends?";
+    if (daysSinceLastEntry === 1) return "Yesterday's missing a page — pick it back up today?";
+    if (daysSinceLastEntry >= 2) return `It's been ${daysSinceLastEntry} days since your last entry. No pressure — even a line or two keeps the thread going.`;
+    return "Time to write today's page.";
+  }
+
   function scheduleReminder() {
     clearReminder();
     if (!settings.reminderOn) return;
@@ -3865,7 +4641,7 @@
     reminderTimeoutId = setTimeout(() => {
       try {
         if (Notification.permission === 'granted') {
-          new Notification('Voice Diary', { body: "Time to write today's page." });
+          new Notification('Voice Diary', { body: buildReminderMessage() });
         }
       } catch {}
       scheduleReminder(); // queue up tomorrow's reminder
@@ -3926,6 +4702,21 @@
   function wireSecondaryEvents() {
     el.createNewBtn.addEventListener('click', openCreateScreen);
     el.settingsBtn.addEventListener('click', openSettingsScreen);
+
+    if (el.recapTabs) {
+      el.recapTabs.addEventListener('click', (e) => {
+        const btn = e.target.closest('.recap-tab');
+        if (!btn) return;
+        currentRecapRange = btn.dataset.range;
+        el.recapTabs.querySelectorAll('.recap-tab').forEach(t => t.classList.toggle('active', t === btn));
+        renderRecapCard();
+      });
+    }
+    if (el.weeklyGoalEditBtn) el.weeklyGoalEditBtn.addEventListener('click', promptEditWeeklyGoal);
+    if (el.yearReviewBtn) el.yearReviewBtn.addEventListener('click', openYearReviewSheet);
+    if (el.yearReviewSheetBackdrop) el.yearReviewSheetBackdrop.addEventListener('click', closeYearReviewSheet);
+    if (el.yearReviewSendBtn) el.yearReviewSendBtn.addEventListener('click', shareYearReviewNow);
+    if (el.yearReviewDownloadBtn) el.yearReviewDownloadBtn.addEventListener('click', () => downloadYearReviewImage(null));
 
     // home top bar icons
     el.notifBtn.addEventListener('click', openNotifSheet);
@@ -4008,6 +4799,13 @@
       if (diary) exportDiaryAsText(diary);
       closeCoverSheet();
     });
+    if (el.exportDiaryPdfBtn) {
+      el.exportDiaryPdfBtn.addEventListener('click', () => {
+        const diary = currentDiary();
+        if (diary) exportDiaryAsPdf(diary);
+        closeCoverSheet();
+      });
+    }
     el.allDiariesLinkBtn.addEventListener('click', () => { closeCoverSheet(); openHistoryScreen(); });
     el.deleteFromCoverBtn.addEventListener('click', () => {
       const id = activeDiaryId;
@@ -4235,6 +5033,7 @@
     el.reminderToggle.addEventListener('change', toggleReminder);
     el.reminderTime.addEventListener('change', updateReminderTime);
     el.exportAllBtn.addEventListener('click', exportAllDiaries);
+    if (el.exportAllPdfBtn) el.exportAllPdfBtn.addEventListener('click', exportAllDiariesAsPdf);
 
     document.querySelectorAll('.accent-swatch').forEach(btn => {
       btn.addEventListener('click', () => selectAccent(btn.dataset.accent));
