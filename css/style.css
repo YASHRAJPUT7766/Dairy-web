@@ -226,6 +226,15 @@ input, textarea { font-family: inherit; }
   background: linear-gradient(180deg, transparent, var(--amber-soft), transparent);
   z-index: 1;
 }
+.diary-grid-card::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  transition: opacity 0.6s var(--ease); z-index: 1;
+}
+.diary-grid-card[data-mood-tint="happy"]::after { opacity: 0.18; background: radial-gradient(circle at 50% 15%, #ffd166, transparent 70%); }
+.diary-grid-card[data-mood-tint="sad"]::after { opacity: 0.18; background: radial-gradient(circle at 50% 15%, #6f8fc9, transparent 70%); }
+.diary-grid-card[data-mood-tint="calm"]::after { opacity: 0.16; background: radial-gradient(circle at 50% 15%, #7ec8c2, transparent 70%); }
+.diary-grid-card[data-mood-tint="anxious"]::after { opacity: 0.16; background: radial-gradient(circle at 50% 15%, #c98a6a, transparent 70%); }
+.diary-grid-card[data-mood-tint="rainy"]::after { opacity: 0.18; background: radial-gradient(circle at 50% 15%, #9fb8d9, transparent 70%); }
 .diary-grid-card:active { transform: scale(0.96); }
 
 .diary-grid-card-inner {
@@ -454,6 +463,19 @@ input, textarea { font-family: inherit; }
   content: ''; position: absolute; left: 0; top: 8%; bottom: 8%; width: 3px;
   background: linear-gradient(180deg, transparent, var(--amber-soft), transparent);
 }
+
+/* ---- dynamic mood tint: a subtle color wash over the cover reflecting recent mood,
+   layered on top of whatever cover theme is chosen. Purely decorative, never
+   replaces the theme color — just a soft overlay. ---- */
+.book-cover::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  opacity: 0; transition: opacity 0.6s var(--ease); z-index: 1;
+}
+.book-cover[data-mood-tint="happy"]::after { opacity: 0.16; background: radial-gradient(circle at 50% 20%, #ffd166, transparent 70%); }
+.book-cover[data-mood-tint="sad"]::after { opacity: 0.16; background: radial-gradient(circle at 50% 20%, #6f8fc9, transparent 70%); }
+.book-cover[data-mood-tint="calm"]::after { opacity: 0.14; background: radial-gradient(circle at 50% 20%, #7ec8c2, transparent 70%); }
+.book-cover[data-mood-tint="anxious"]::after { opacity: 0.14; background: radial-gradient(circle at 50% 20%, #c98a6a, transparent 70%); }
+.book-cover[data-mood-tint="rainy"]::after { opacity: 0.16; background: radial-gradient(circle at 50% 20%, #9fb8d9, transparent 70%); }
 
 .book-cover-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; position: relative; z-index: 2; }
 .book-cover-mark { font-size: 28px; color: var(--amber); opacity: 0.9; }
@@ -813,6 +835,8 @@ input, textarea { font-family: inherit; }
 }
 .sticker-option:active { transform: scale(0.92); }
 .sticker-option img { width: 100%; height: 100%; object-fit: contain; }
+.sticker-option.locked { opacity: 0.4; position: relative; }
+.sticker-option.locked::after { content: '🔒'; position: absolute; bottom: 4px; right: 4px; font-size: 10px; }
 
 /* ============ DRAGGABLE STICKERS ON THE PAGE ============ */
 
@@ -858,6 +882,11 @@ input, textarea { font-family: inherit; }
 @keyframes waveBounce { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.35); } }
 .voice-clip-duration { font-size: clamp(6px, 2.5cqw, 8.5px); color: var(--text-low); font-family: var(--mono); letter-spacing: 0.3px; }
 .voice-clip-remove { width: clamp(9px, 4.7cqw, 16px); height: clamp(9px, 4.7cqw, 16px); border-radius: 50%; background: rgba(184,73,63,0.15); color: var(--danger); font-size: clamp(6px, 3cqw, 10px); display: grid; place-items: center; flex-shrink: 0; }
+.voice-clip-filter-btn {
+  width: clamp(13px, 6cqw, 20px); height: clamp(13px, 6cqw, 20px); border-radius: 50%;
+  background: rgba(0,0,0,0.12); font-size: clamp(8px, 4cqw, 12px); display: grid; place-items: center;
+  flex-shrink: 0; margin-left: 2px;
+}
 .voice-clip-resize-handle {
   position: absolute; right: -5px; bottom: -5px; width: clamp(10px, 4.7cqw, 16px); height: clamp(10px, 4.7cqw, 16px); border-radius: 50%;
   background: var(--amber); border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.25);
@@ -902,6 +931,8 @@ input, textarea { font-family: inherit; }
 }
 .font-option small { font-size: 11px; color: var(--text-low); font-family: var(--sans); }
 .font-option.active { border-color: var(--amber); background: var(--amber-soft); }
+.font-option.locked { opacity: 0.5; position: relative; }
+.font-option.locked::after { content: '🔒'; position: absolute; top: 8px; right: 10px; font-size: 11px; }
 
 .mood-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .mood-option {
@@ -958,6 +989,7 @@ input, textarea { font-family: inherit; }
   border: 1.4px solid var(--panel-border); font-size: 14px; color: var(--text-hi); transition: all 0.2s var(--ease);
 }
 .lang-option.active { border-color: var(--amber); background: var(--amber-soft); color: var(--amber); font-weight: 600; }
+.settings-note { font-size: 11.5px; color: var(--text-low); line-height: 1.5; margin: 8px 4px 0; }
 
 .time-input {
   margin-top: 10px; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 12px;
@@ -1136,6 +1168,59 @@ input, textarea { font-family: inherit; }
 }
 .quote-mark { font-family: var(--serif); font-size: 34px; color: var(--amber); opacity: 0.5; line-height: 0.5; display: block; }
 .quote-text { font-family: var(--serif); font-style: italic; font-size: 14.5px; color: var(--text-mid); margin: 4px 0 0; }
+
+/* ============ HOME: GLANCE WIDGET ============ */
+/* Not a true OS widget (that needs a native app shell) — a quick-glance summary
+   card shown right in the app instead. */
+
+.glance-widget {
+  display: flex; align-items: center; margin: 4px 4px 16px; padding: 14px 8px;
+  border-radius: 16px; background: var(--panel); border: 1px solid var(--panel-border);
+}
+.glance-widget-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.glance-widget-num { font-family: var(--serif); font-size: 22px; font-weight: 600; color: var(--ink-dark-text); }
+.glance-widget-mood { font-size: 22px; }
+.glance-widget-label { font-size: 10.5px; color: var(--text-mid); letter-spacing: 0.2px; }
+.glance-widget-divider { width: 1px; height: 34px; background: var(--panel-border); }
+
+/* ============ INSIGHTS: WEEKLY GOAL RING ============ */
+
+.weekly-goal-card {
+  display: flex; align-items: center; gap: 14px; margin: 0 4px 18px; padding: 14px 16px;
+  border-radius: 16px; background: var(--panel); border: 1px solid var(--panel-border);
+}
+.weekly-goal-ring-wrap { position: relative; width: 64px; height: 64px; flex-shrink: 0; }
+.weekly-goal-ring circle { transition: stroke-dashoffset 0.6s var(--ease); }
+.weekly-goal-ring-label {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: var(--text-hi);
+}
+.weekly-goal-text { flex: 1; min-width: 0; }
+.weekly-goal-title { font-family: var(--serif); font-size: 14.5px; font-weight: 600; color: var(--ink-dark-text); margin: 0 0 2px; }
+.weekly-goal-sub { font-size: 12px; color: var(--text-mid); margin: 0 0 6px; line-height: 1.4; }
+.weekly-goal-edit-btn { padding: 0; font-size: 12px; color: var(--amber); font-weight: 600; }
+
+/* ============ INSIGHTS: RECAP CARD ============ */
+
+.recap-tabs { display: flex; gap: 8px; margin: 4px 4px 10px; }
+.recap-tab {
+  flex: 1; padding: 9px 6px; border-radius: 12px; background: var(--panel); border: 1px solid var(--panel-border);
+  color: var(--text-mid); font-size: 12.5px; font-weight: 600; transition: all 0.2s var(--ease);
+}
+.recap-tab.active { background: var(--amber); border-color: var(--amber); color: #fff; }
+
+.recap-card {
+  margin: 0 4px 18px; padding: 18px 18px 16px; border-radius: 16px; position: relative;
+  background: linear-gradient(135deg, var(--amber-soft), transparent);
+  border: 1px solid var(--panel-border);
+}
+.recap-headline { font-family: var(--serif); font-size: 16.5px; font-weight: 600; color: var(--ink-dark-text); margin: 0 0 6px; line-height: 1.4; }
+.recap-body { font-size: 13.5px; color: var(--text-mid); line-height: 1.65; margin: 0; }
+.recap-stats-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.recap-stat-chip {
+  font-size: 11.5px; font-weight: 600; color: var(--text-hi); background: var(--bg);
+  border: 1px solid var(--panel-border); padding: 5px 10px; border-radius: 100px;
+}
 
 /* ============ HOME: STATS ROW ============ */
 
