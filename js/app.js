@@ -116,6 +116,15 @@
     fsThemeBtn: $('fsThemeBtn'), fsStickerBtn: $('fsStickerBtn'), fsFontBtn: $('fsFontBtn'), fsExpandBtn: $('fsExpandBtn'),
     fsVoiceNoteBtn: $('fsVoiceNoteBtn'), fsBookmarkBtn: $('fsBookmarkBtn'), fsPhotoBtn: $('fsPhotoBtn'), fsTagBtn: $('fsTagBtn'),
     fsTtsBtn: $('fsTtsBtn'), fsTagsRow: $('fsTagsRow'), photoFileInput: $('photoFileInput'),
+    fsCapsuleBtn: $('fsCapsuleBtn'), fsShareImgBtn: $('fsShareImgBtn'), capsuleLockOverlay: $('capsuleLockOverlay'),
+    capsuleLockDate: $('capsuleLockDate'), capsuleUnlockEarlyBtn: $('capsuleUnlockEarlyBtn'),
+    capsuleSheetBackdrop: $('capsuleSheetBackdrop'), capsuleSheet: $('capsuleSheet'), capsuleDateInput: $('capsuleDateInput'),
+    capsuleSealBtn: $('capsuleSealBtn'), capsuleRemoveBtn: $('capsuleRemoveBtn'),
+    shareImgSheetBackdrop: $('shareImgSheetBackdrop'), shareImgSheet: $('shareImgSheet'), shareImgCanvas: $('shareImgCanvas'),
+    shareImgFormatRow: $('shareImgFormatRow'), shareImgSendBtn: $('shareImgSendBtn'), shareImgDownloadBtn: $('shareImgDownloadBtn'),
+    moodSuggestHint: $('moodSuggestHint'), moodSuggestValue: $('moodSuggestValue'),
+    streakFreezeCard: $('streakFreezeCard'), streakFreezeTitle: $('streakFreezeTitle'),
+    wordCloud: $('wordCloud'), lengthTrendChart: $('lengthTrendChart'),
     fsHeadline: $('fsHeadline'), fsDate: $('fsDate'), fsBody: $('fsBody'), fsMicFab: $('fsMicFab'),
     fsContent: $('fsContent'), fsStickerLayer: $('fsStickerLayer'), fsBodyZone: $('fsBodyZone'),
     recordingIndicator: $('recordingIndicator'), recordingTime: $('recordingTime'),
@@ -233,6 +242,8 @@
         if (!Array.isArray(p.photos)) p.photos = [];
         if (!Array.isArray(p.tags)) p.tags = [];
         if (p.bookmarked === undefined) p.bookmarked = false;
+        if (p.capsuleUntil === undefined) p.capsuleUntil = null; // ISO date string, or null if not a time capsule
+        if (p.suggestedMood === undefined) p.suggestedMood = null; // rough voice-based guess, cleared once a mood is confirmed
         p.photos.forEach(ph => { if (ph.sizePct === undefined) ph.sizePct = 45; });
       });
     });
@@ -261,6 +272,9 @@
     if (settings.soundOn === undefined) settings.soundOn = false;
     if (settings.appLock === undefined) settings.appLock = false;
     if (settings.pin === undefined) settings.pin = '';
+    // streak freeze: one free "miss a day, keep your streak" per calendar month
+    if (settings.streakFreezeMonth === undefined) settings.streakFreezeMonth = ''; // 'YYYY-MM' of month it was last used, '' if unused this month
+    if (!Array.isArray(settings.streakFreezeDatesUsed)) settings.streakFreezeDatesUsed = []; // dates (toDateString) that were auto-covered by a freeze
   }
 
   // ---------- profile helpers (name / photo shown across Home, Profile, Insights, Settings) ----------
@@ -313,6 +327,7 @@
 
   function initHome() {
     loadDiaries();
+    maybeConsumeStreakFreeze();
     renderWeekStrip();
     el.todayFull.textContent = formatDateLong(new Date());
     renderDiaryGrid();
@@ -450,13 +465,47 @@
   }
 
   function computeCurrentStreak(dateSet) {
+    // frozen dates count as "present" for streak-counting purposes, same as a real entry
+    const effectiveSet = (settings.streakFreezeDatesUsed && settings.streakFreezeDatesUsed.length)
+      ? new Set([...dateSet, ...settings.streakFreezeDatesUsed])
+      : dateSet;
     let streak = 0;
     const cur = new Date();
-    while (dateSet.has(cur.toDateString())) {
+    while (effectiveSet.has(cur.toDateString())) {
       streak++;
       cur.setDate(cur.getDate() - 1);
     }
     return streak;
+  }
+
+  function currentMonthKey(d) {
+    d = d || new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+
+  function isStreakFreezeAvailable() {
+    return settings.streakFreezeMonth !== currentMonthKey();
+  }
+
+  // Called once per day (on home load) — if yesterday has no entry, today does,
+  // and a freeze is still available this month, silently consume the freeze so
+  // the streak isn't broken. This only bridges a single missed day, and only
+  // when there was a genuine streak going into that missed day.
+  function maybeConsumeStreakFreeze() {
+    if (!isStreakFreezeAvailable()) return;
+    const dateSet = getAllDatesWithEntries();
+    const today = new Date();
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    const twoDaysAgo = new Date(today); twoDaysAgo.setDate(today.getDate() - 2);
+    const hasToday = dateSet.has(today.toDateString());
+    const hasYesterday = dateSet.has(yesterday.toDateString());
+    const hasTwoDaysAgo = dateSet.has(twoDaysAgo.toDateString());
+    if (hasToday && !hasYesterday && hasTwoDaysAgo) {
+      settings.streakFreezeMonth = currentMonthKey();
+      settings.streakFreezeDatesUsed.push(yesterday.toDateString());
+      persistSettings();
+      showToast('🧊 Streak freeze used — yesterday is covered!');
+    }
   }
 
   function computeLongestStreak(dateSet) {
@@ -481,6 +530,15 @@
       el.streakPill.hidden = true;
     }
     checkStreakMilestone();
+  }
+
+  function renderStreakFreezeCard() {
+    if (!el.streakFreezeCard) return;
+    const available = isStreakFreezeAvailable();
+    el.streakFreezeCard.classList.toggle('used', !available);
+    el.streakFreezeTitle.textContent = available
+      ? '1 streak freeze available'
+      : 'Streak freeze used this month';
   }
 
   // ---------- mood heatmap (last 28 days) ----------
@@ -586,6 +644,7 @@
       return `
       <div class="diary-grid-card" data-id="${d.id}" data-cover-theme="${d.coverTheme || 'classic'}">
         ${d.lock ? `<span class="diary-grid-card-lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>` : ''}
+        ${d.pages.some(isCapsuleLocked) ? `<span class="diary-grid-card-capsule" title="Contains a sealed time capsule page">🧊</span>` : ''}
         <div class="diary-grid-card-stickers">${stickerHtml}</div>
         <div class="diary-grid-card-inner">
           <span class="diary-grid-card-mark">◐</span>
@@ -1033,6 +1092,17 @@
     if (existingHint) existingHint.remove();
     sheetEl.onclick = null;
     sheetEl.dataset.pageIndex = String(idx);
+
+    if (isCapsuleLocked(page)) {
+      headlineEl.contentEditable = 'false';
+      linesEl.contentEditable = 'false';
+      headlineEl.textContent = '🧊 Sealed';
+      dateEl.textContent = 'Opens ' + formatCapsuleDate(page.capsuleUntil);
+      linesEl.textContent = 'This page is a time capsule and will unlock automatically on that date.';
+      numEl.textContent = String(idx + 1);
+      return;
+    }
+
     headlineEl.contentEditable = 'true';
     linesEl.contentEditable = 'true';
     headlineEl.textContent = page.headline || '';
@@ -1048,6 +1118,7 @@
     if (!diary) return;
     const page = diary.pages[Number(idxStr)];
     if (!page) return;
+    if (isCapsuleLocked(page)) return; // never persist placeholder text over a sealed page
     const headlineEl = sheetEl.querySelector('[data-field="headline"]');
     const linesEl = sheetEl.querySelector('[data-field="lines"]');
     page.headline = headlineEl.textContent.trim();
@@ -1422,6 +1493,8 @@
   }
 
   // apply the correct theme to whichever page sheets / fullscreen sheet are visible right now
+  const MOOD_VIBE_MAP = { '😊': 'happy', '🥳': 'happy', '😐': 'calm', '😢': 'sad', '😡': 'intense', '😴': 'calm', '😰': 'intense' };
+
   function applyActiveThemes() {
     const diary = currentDiary();
     if (!diary) return;
@@ -1429,9 +1502,12 @@
     const leftPage = diary.pages[li], rightPage = diary.pages[ri];
     el.pageSheetLeft.dataset.theme = (leftPage && leftPage.theme) || diary.theme || 'parchment';
     el.pageSheetRight.dataset.theme = (rightPage && rightPage.theme) || diary.theme || 'parchment';
+    el.pageSheetLeft.dataset.vibe = (leftPage && MOOD_VIBE_MAP[leftPage.mood]) || '';
+    el.pageSheetRight.dataset.vibe = (rightPage && MOOD_VIBE_MAP[rightPage.mood]) || '';
     if (editingIndex !== null) {
       const page = diary.pages[editingIndex];
       el.fsSheet.dataset.theme = (page && page.theme) || diary.theme || 'parchment';
+      el.fsSheet.dataset.vibe = (page && MOOD_VIBE_MAP[page.mood]) || '';
     }
   }
 
@@ -1923,11 +1999,31 @@
           id: uid(), x: 8 + Math.random() * 10, y: 6 + Math.random() * 8, widthPct: 78,
           dataUrl, duration: durationSec, waveform,
         });
+        const suggestion = suggestMoodFromWaveform(waveform, durationSec);
+        if (suggestion && !page.mood) page.suggestedMood = suggestion;
         persist();
         rerenderVoiceClips(info.target, page, info.idx);
         showToast('Voice note added — drag to place it');
       });
     }).catch(() => showToast("Couldn't save the recording."));
+  }
+
+  // ---- lightweight voice mood heuristic (energy + variance of the recorded waveform) ----
+  // This is a rough, on-device guess from loudness/pace only — never a claim about how
+  // the person actually feels. It only ever pre-fills a suggestion the person can confirm,
+  // change, or ignore in the mood sheet.
+  function suggestMoodFromWaveform(waveform, durationSec) {
+    if (!waveform || !waveform.length || durationSec < 1.2) return null;
+    const avg = waveform.reduce((a, b) => a + b, 0) / waveform.length;
+    const variance = waveform.reduce((a, b) => a + (b - avg) * (b - avg), 0) / waveform.length;
+    const pace = waveform.length / durationSec; // proxy only, bar count is fixed so this mostly reflects duration
+
+    if (avg > 0.55 && variance > 0.045) return '🥳';
+    if (avg > 0.5 && variance <= 0.045) return '😊';
+    if (avg < 0.28 && variance < 0.02) return '😴';
+    if (avg < 0.35 && durationSec > 20) return '😐';
+    if (variance > 0.06 && avg > 0.4) return '😰';
+    return null; // not confident enough — no suggestion, mood sheet shows normal picker
   }
 
   function blobToDataUrl(blob) {
@@ -1995,15 +2091,25 @@
 
   // ============ MOOD PICKER ============
 
+  const MOOD_LABELS_FOR_HINT = { '😊': 'happy', '🥳': 'excited', '😐': 'reflective', '😢': 'sad', '😡': 'frustrated', '😴': 'tired', '😰': 'anxious' };
+
   function openMoodSheet() {
     const diary = currentDiary();
     if (!diary) return;
     const idx = getFocusedPageIndex();
     if (!diary.pages[idx]) { showToast('Add a page first.'); return; }
+    const page = diary.pages[idx];
 
     document.querySelectorAll('.mood-option').forEach(btn => {
-      btn.classList.toggle('active', (btn.dataset.mood || '') === (diary.pages[idx].mood || ''));
+      btn.classList.toggle('active', (btn.dataset.mood || '') === (page.mood || ''));
     });
+
+    if (el.moodSuggestHint) {
+      const suggestion = !page.mood && page.suggestedMood;
+      el.moodSuggestHint.hidden = !suggestion;
+      if (suggestion) el.moodSuggestValue.textContent = (MOOD_LABELS_FOR_HINT[page.suggestedMood] || 'something') + ' ' + page.suggestedMood;
+    }
+
     el.moodSheetBackdrop.hidden = false;
     el.moodSheet.hidden = false;
     requestAnimationFrame(() => {
@@ -2025,6 +2131,7 @@
     const page = diary.pages[idx];
     if (!page) return;
     page.mood = mood;
+    page.suggestedMood = null;
     persist();
     renderSpread(pairIndex, null);
     closeMoodSheet();
@@ -2052,6 +2159,7 @@
     renderPhotosForSheet(el.fsStickerLayer, page, idx);
     renderFsBookmark(page);
     renderFsTags(page);
+    renderCapsuleLock(page);
 
     el.fullscreenReader.hidden = false;
     el.bottomNav.classList.add('nav-hidden');
@@ -2066,6 +2174,7 @@
     if (!diary) return;
     const page = diary.pages[editingIndex];
     if (!page) return;
+    if (isCapsuleLocked(page)) return;
     page.headline = el.fsHeadline.textContent.trim();
     page.text = el.fsBody.textContent;
     persist();
@@ -2106,6 +2215,99 @@
     persist();
     renderFsBookmark(page);
     showToast(page.bookmarked ? 'Bookmarked' : 'Bookmark removed');
+  }
+
+  // ============ TIME CAPSULE (lock a page until a future date) ============
+
+  function isCapsuleLocked(page) {
+    if (!page || !page.capsuleUntil) return false;
+    const untilDate = new Date(page.capsuleUntil + 'T00:00:00');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return untilDate > today;
+  }
+
+  function formatCapsuleDate(iso) {
+    const d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function renderCapsuleLock(page) {
+    const locked = isCapsuleLocked(page);
+    el.fsCapsuleBtn.classList.toggle('active', !!page.capsuleUntil);
+    if (!el.capsuleLockOverlay) return;
+    el.capsuleLockOverlay.hidden = !locked;
+    if (locked) {
+      el.capsuleLockDate.textContent = formatCapsuleDate(page.capsuleUntil);
+      el.fsBody.contentEditable = 'false';
+      el.fsHeadline.contentEditable = 'false';
+    } else {
+      el.fsBody.contentEditable = 'true';
+      el.fsHeadline.contentEditable = 'true';
+    }
+  }
+
+  function openCapsuleSheet() {
+    if (editingIndex === null) return;
+    const diary = currentDiary();
+    if (!diary) return;
+    const page = diary.pages[editingIndex];
+    if (!page) return;
+    el.capsuleDateInput.value = page.capsuleUntil || '';
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+    el.capsuleDateInput.min = tomorrow.toISOString().slice(0, 10);
+    el.capsuleRemoveBtn.hidden = !page.capsuleUntil;
+    el.capsuleSheetBackdrop.hidden = false;
+    el.capsuleSheet.hidden = false;
+    requestAnimationFrame(() => {
+      el.capsuleSheetBackdrop.classList.add('show');
+      el.capsuleSheet.classList.add('show');
+    });
+  }
+
+  function closeCapsuleSheet() {
+    el.capsuleSheetBackdrop.classList.remove('show');
+    el.capsuleSheet.classList.remove('show');
+    setTimeout(() => { el.capsuleSheetBackdrop.hidden = true; el.capsuleSheet.hidden = true; }, 350);
+  }
+
+  function sealCapsule() {
+    if (editingIndex === null) return;
+    const diary = currentDiary();
+    if (!diary) return;
+    const page = diary.pages[editingIndex];
+    if (!page) return;
+    const val = el.capsuleDateInput.value;
+    if (!val) { showToast('Pick a future date first.'); return; }
+    page.capsuleUntil = val;
+    persist();
+    renderCapsuleLock(page);
+    closeCapsuleSheet();
+    showToast('Sealed until ' + formatCapsuleDate(val));
+  }
+
+  function removeCapsule() {
+    if (editingIndex === null) return;
+    const diary = currentDiary();
+    if (!diary) return;
+    const page = diary.pages[editingIndex];
+    if (!page) return;
+    page.capsuleUntil = null;
+    persist();
+    renderCapsuleLock(page);
+    closeCapsuleSheet();
+    showToast('Seal removed');
+  }
+
+  function unlockCapsuleEarly() {
+    if (editingIndex === null) return;
+    const diary = currentDiary();
+    if (!diary) return;
+    const page = diary.pages[editingIndex];
+    if (!page) return;
+    el.capsuleLockOverlay.hidden = true;
+    el.fsBody.contentEditable = 'true';
+    el.fsHeadline.contentEditable = 'true';
+    showToast('Opened early — this page stays sealed for next time');
   }
 
   // ============ TAGS ============
@@ -2524,6 +2726,158 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  // ============ SHARE AS IMAGE (WhatsApp status / Instagram story) ============
+
+  const SHARE_THEME_COLORS = {
+    parchment: { from: '#f6efe0', to: '#ead9bb', ink: '#2b2416', sub: '#6b5a3f' },
+    night:     { from: '#1b2233', to: '#0f131e', ink: '#d9def0', sub: '#8f9ac2' },
+    sunset:    { from: '#f7ceb0', to: '#e58a71', ink: '#3a1f16', sub: '#7a3d2c' },
+    forest:    { from: '#dbe6cd', to: '#a9c090', ink: '#22301a', sub: '#4c6339' },
+    lavender:  { from: '#e6e0f5', to: '#c3b6e3', ink: '#2c2440', sub: '#5c4f85' },
+    ocean:     { from: '#cfe6e6', to: '#7fb3b8', ink: '#14302f', sub: '#386361' },
+    blush:     { from: '#f9e2e2', to: '#e9b3ae', ink: '#3d2320', sub: '#7a4844' },
+    sand:      { from: '#eee3c8', to: '#d8c295', ink: '#362c17', sub: '#6b5a34' },
+  };
+
+  let shareImgFormat = 'story'; // 'story' (1080x1920) or 'square' (1080x1080)
+
+  function wrapCanvasText(ctx, text, maxWidth) {
+    const words = (text || '').split(/\s+/).filter(Boolean);
+    const lines = [];
+    let line = '';
+    words.forEach(word => {
+      const test = line ? line + ' ' + word : word;
+      if (ctx.measureText(test).width > maxWidth && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = test;
+      }
+    });
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  function drawShareImage() {
+    const diary = currentDiary();
+    if (!diary || editingIndex === null) return;
+    const page = diary.pages[editingIndex];
+    if (!page) return;
+
+    const isStory = shareImgFormat === 'story';
+    const W = 1080, H = isStory ? 1920 : 1080;
+    const canvas = el.shareImgCanvas;
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    const themeKey = page.theme || diary.theme || 'parchment';
+    const colors = SHARE_THEME_COLORS[themeKey] || SHARE_THEME_COLORS.parchment;
+
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, colors.from);
+    grad.addColorStop(1, colors.to);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    const padX = 96;
+    let y = isStory ? 260 : 140;
+
+    // diary name (small label)
+    ctx.fillStyle = colors.sub;
+    ctx.font = '600 30px Inter, sans-serif';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(diary.name.toUpperCase(), padX, y);
+    y += 56;
+
+    // date + mood
+    ctx.font = '500 30px Inter, sans-serif';
+    ctx.fillText(formatDateLong(new Date(page.date)) + (page.mood ? '   ' + page.mood : ''), padX, y);
+    y += 90;
+
+    // headline
+    if (page.headline) {
+      ctx.fillStyle = colors.ink;
+      ctx.font = '600 58px Fraunces, Georgia, serif';
+      const headlineLines = wrapCanvasText(ctx, page.headline, W - padX * 2);
+      headlineLines.slice(0, 3).forEach(line => { ctx.fillText(line, padX, y); y += 68; });
+      y += 30;
+    }
+
+    // body text
+    ctx.fillStyle = colors.ink;
+    ctx.font = '400 40px Fraunces, Georgia, serif';
+    const bodyMaxY = isStory ? H - 320 : H - 200;
+    const bodyLines = wrapCanvasText(ctx, page.text || '', W - padX * 2);
+    for (const line of bodyLines) {
+      if (y > bodyMaxY) {
+        ctx.font = '400 34px Inter, sans-serif';
+        ctx.fillStyle = colors.sub;
+        ctx.fillText('…', padX, y);
+        break;
+      }
+      ctx.fillText(line, padX, y);
+      y += 56;
+    }
+
+    // signature footer
+    ctx.font = '500 28px Inter, sans-serif';
+    ctx.fillStyle = colors.sub;
+    ctx.fillText((diary.signature || 'made with Voice Diary'), padX, H - (isStory ? 120 : 80));
+  }
+
+  function openShareImgSheet() {
+    if (editingIndex === null) { showToast('Open a page first.'); return; }
+    shareImgFormat = 'story';
+    if (el.shareImgFormatRow) {
+      el.shareImgFormatRow.querySelectorAll('.share-format-chip').forEach(c => c.classList.toggle('active', c.dataset.format === 'story'));
+    }
+    drawShareImage();
+    el.shareImgSheetBackdrop.hidden = false;
+    el.shareImgSheet.hidden = false;
+    requestAnimationFrame(() => {
+      el.shareImgSheetBackdrop.classList.add('show');
+      el.shareImgSheet.classList.add('show');
+    });
+  }
+
+  function closeShareImgSheet() {
+    el.shareImgSheetBackdrop.classList.remove('show');
+    el.shareImgSheet.classList.remove('show');
+    setTimeout(() => { el.shareImgSheetBackdrop.hidden = true; el.shareImgSheet.hidden = true; }, 350);
+  }
+
+  function shareImageNow() {
+    el.shareImgCanvas.toBlob(async (blob) => {
+      if (!blob) { showToast("Couldn't generate the image."); return; }
+      const file = new File([blob], 'voice-diary-page.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'My diary page' });
+        } catch (err) {
+          if (err && err.name !== 'AbortError') showToast("Couldn't share the image.");
+        }
+      } else {
+        downloadShareImage(blob);
+        showToast('Image downloaded — share it from your gallery');
+      }
+    }, 'image/png');
+  }
+
+  function downloadShareImage(blob) {
+    const doDownload = (b) => {
+      const url = URL.createObjectURL(b);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'voice-diary-page.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+    if (blob) { doDownload(blob); return; }
+    el.shareImgCanvas.toBlob(b => { if (b) doDownload(b); else showToast("Couldn't generate the image."); }, 'image/png');
+  }
+
   // ============ HISTORY SCREEN ============
 
   function openHistoryScreen() {
@@ -2884,6 +3238,7 @@
     const dateSet = getAllDatesWithEntries();
     const streak = computeCurrentStreak(dateSet);
     el.insightsStreakText.textContent = `${streak} day${streak === 1 ? '' : 's'} streak`;
+    renderStreakFreezeCard();
 
     // weekly chart (reuse same counts logic as home)
     const counts = new Array(7).fill(0);
@@ -2962,7 +3317,64 @@
       });
     });
 
+    renderWordCloud();
+    renderLengthTrend();
+
     showScreen('insights');
+  }
+
+  // ---------- word cloud (Insights) ----------
+  const WORD_CLOUD_STOPWORDS = new Set([
+    'the','a','an','and','or','but','is','are','was','were','be','been','being','to','of','in','on','at','for',
+    'with','about','as','it','its','this','that','these','those','i','me','my','myself','we','our','ours',
+    'you','your','yours','he','him','his','she','her','hers','they','them','their','so','if','than','then',
+    'just','not','no','do','does','did','have','has','had','will','would','can','could','should','from',
+    'by','up','out','all','also','very','too','into','over','again','because','when','while','how','what',
+    'there','here','some','any','more','most','such','only','own','same','both','each','few','which','who',
+    'whom','am','been','being','get','got','one','two','still','really','much','many'
+  ]);
+
+  function renderWordCloud() {
+    if (!el.wordCloud) return;
+    const counts = {};
+    diaries.forEach(d => d.pages.forEach(p => {
+      const words = (p.text || '').toLowerCase().match(/[a-z']+/g) || [];
+      words.forEach(w => {
+        if (w.length < 4 || WORD_CLOUD_STOPWORDS.has(w)) return;
+        counts[w] = (counts[w] || 0) + 1;
+      });
+    }));
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 18);
+    if (!entries.length) {
+      el.wordCloud.innerHTML = '<p class="empty-note">Write a few entries and your favourite words will show up here.</p>';
+      return;
+    }
+    const maxCount = entries[0][1];
+    el.wordCloud.innerHTML = entries.map(([word, count]) => {
+      const scale = 12 + Math.round((count / maxCount) * 20); // 12px..32px
+      return `<span class="word-cloud-item" style="font-size:${scale}px">${escapeHtml(word)}</span>`;
+    }).join('');
+  }
+
+  // ---------- entry length trend (Insights) ----------
+  function renderLengthTrend() {
+    if (!el.lengthTrendChart) return;
+    const allPages = [];
+    diaries.forEach(d => d.pages.forEach(p => allPages.push(p)));
+    allPages.sort((a, b) => new Date(a.date) - new Date(b.date));
+    const last = allPages.slice(-10);
+    if (!last.length) {
+      el.lengthTrendChart.innerHTML = '<p class="empty-note">No entries yet.</p>';
+      return;
+    }
+    const wordCounts = last.map(p => (p.text || '').trim().split(/\s+/).filter(Boolean).length);
+    const max = Math.max(...wordCounts, 1);
+    el.lengthTrendChart.innerHTML = last.map((p, i) => {
+      const h = wordCounts[i] === 0 ? 4 : Math.round((wordCounts[i] / max) * 52) + 6;
+      const d = new Date(p.date);
+      const label = (d.getMonth() + 1) + '/' + d.getDate();
+      return `<div class="chart-bar-wrap"><div class="chart-bar${wordCounts[i] > 0 ? ' active' : ''}" style="height:${h}px" title="${wordCounts[i]} words"></div><span class="chart-bar-label">${label}</span></div>`;
+    }).join('');
   }
 
   function openSettingsScreen() {
@@ -3691,6 +4103,14 @@
     el.moodOptions.querySelectorAll('.mood-option').forEach(btn => {
       btn.addEventListener('click', () => selectMood(btn.dataset.mood));
     });
+    if (el.moodSuggestHint) {
+      el.moodSuggestHint.addEventListener('click', () => {
+        if (el.moodSuggestValue && el.moodSuggestValue.textContent) {
+          const emoji = el.moodSuggestValue.textContent.trim().split(' ').pop();
+          if (emoji) selectMood(emoji);
+        }
+      });
+    }
 
     el.fullscreenBtn.addEventListener('click', openFullscreen);
 
@@ -3753,6 +4173,27 @@
     el.fsTagBtn.addEventListener('click', openTagSheet);
     el.fsPhotoBtn.addEventListener('click', openPhotoPicker);
     el.fsTtsBtn.addEventListener('click', toggleSpeaking);
+
+    if (el.fsCapsuleBtn) el.fsCapsuleBtn.addEventListener('click', openCapsuleSheet);
+    if (el.capsuleSheetBackdrop) el.capsuleSheetBackdrop.addEventListener('click', closeCapsuleSheet);
+    if (el.capsuleSealBtn) el.capsuleSealBtn.addEventListener('click', sealCapsule);
+    if (el.capsuleRemoveBtn) el.capsuleRemoveBtn.addEventListener('click', removeCapsule);
+    if (el.capsuleUnlockEarlyBtn) el.capsuleUnlockEarlyBtn.addEventListener('click', unlockCapsuleEarly);
+
+    if (el.fsShareImgBtn) el.fsShareImgBtn.addEventListener('click', openShareImgSheet);
+    if (el.shareImgSheetBackdrop) el.shareImgSheetBackdrop.addEventListener('click', closeShareImgSheet);
+    if (el.shareImgSendBtn) el.shareImgSendBtn.addEventListener('click', shareImageNow);
+    if (el.shareImgDownloadBtn) el.shareImgDownloadBtn.addEventListener('click', () => downloadShareImage(null));
+    if (el.shareImgFormatRow) {
+      el.shareImgFormatRow.querySelectorAll('.share-format-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          shareImgFormat = chip.dataset.format;
+          el.shareImgFormatRow.querySelectorAll('.share-format-chip').forEach(c => c.classList.toggle('active', c === chip));
+          drawShareImage();
+        });
+      });
+    }
+
     el.photoFileInput.addEventListener('change', () => handlePhotoFileSelected(el.photoFileInput.files[0]));
     el.tagSheetBackdrop.addEventListener('click', closeTagSheet);
     el.tagOptions.querySelectorAll('.tag-chip').forEach(btn => {
