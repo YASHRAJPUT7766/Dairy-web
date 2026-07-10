@@ -200,8 +200,10 @@
   // showOfflineScreen() takes over the whole screen on first launch with no
   // connection, and the slim offlineBanner shows if the connection drops mid-use.
 
+  let knownOffline = false; // updated by real connectivity checks below, more reliable than navigator.onLine alone
+
   function isAppOffline() {
-    return typeof navigator !== 'undefined' && navigator.onLine === false;
+    return knownOffline;
   }
 
   // call this before any action that writes to a diary (adding a page, recording a
@@ -241,32 +243,65 @@
   function retryConnection() {
     if (!el.offlineRetryBtn) return;
     el.offlineRetryBtn.classList.add('retrying');
-    // there's no real "ping" endpoint to hit here — navigator.onLine is the best
-    // on-device signal available, so re-check it after a short beat so the retry
-    // button visibly does something instead of instantly flipping back
-    setTimeout(() => {
+    checkRealConnectivity().then(online => {
       el.offlineRetryBtn.classList.remove('retrying');
-      if (!isAppOffline()) {
+      if (online) {
         hideOfflineScreen();
+        updateOfflineBanner();
         showToast("You're back online");
       } else {
         showToast('Still offline — check your connection and try again.');
       }
-    }, 700);
+    });
   }
 
-  function wireOfflineHandling() {
-    window.addEventListener('online', () => {
+  // navigator.onLine is unreliable on many mobile browsers — it mostly reflects
+  // "is there a network adapter at all" (e.g. flips correctly for airplane mode)
+  // but often stays "true" even when WiFi is connected with no real internet. This
+  // does an actual network round-trip (a tiny, uncacheable request) to know for
+  // sure, and is what drives the periodic check below.
+  function checkRealConnectivity() {
+    if (navigator.onLine === false) return Promise.resolve(false); // trust definite negatives, e.g. airplane mode
+    return fetch('https://www.gstatic.com/generate_204', { mode: 'no-cors', cache: 'no-store' })
+      .then(() => true)
+      .catch(() => false);
+  }
+
+  let offlinePollId = null;
+
+  function handleConnectivityResult(online) {
+    if (!online && !knownOffline) {
+      knownOffline = true;
+      showOfflineScreen();
+      updateOfflineBanner();
+    } else if (online && knownOffline) {
+      knownOffline = false;
       hideOfflineScreen();
       updateOfflineBanner();
       showToast("You're back online");
-    });
+    }
+  }
+
+  function pollConnectivity() {
+    checkRealConnectivity().then(handleConnectivityResult);
+  }
+
+  function wireOfflineHandling() {
+    window.addEventListener('online', pollConnectivity);
     window.addEventListener('offline', () => {
+      knownOffline = true;
+      showOfflineScreen();
       updateOfflineBanner();
-      showToast("You're offline — writing is paused");
     });
     if (el.offlineRetryBtn) el.offlineRetryBtn.addEventListener('click', retryConnection);
     if (el.offlineContinueBtn) el.offlineContinueBtn.addEventListener('click', hideOfflineScreen);
+
+    // also poll periodically, since the browser events alone aren't reliable enough
+    // to catch "WiFi connected but no real internet" on many phones
+    if (offlinePollId) clearInterval(offlinePollId);
+    offlinePollId = setInterval(pollConnectivity, 15000);
+
+    pollConnectivity(); // check immediately on wire-up too
     updateOfflineBanner();
   }
 
@@ -289,8 +324,7 @@
           setTimeout(() => {
             el.loadingScreen.hidden = true;
             el.app.hidden = false;
-            wireOfflineHandling();
-            if (isAppOffline()) showOfflineScreen();
+            wireOfflineHandling(); // this also runs an immediate connectivity check and shows the offline screen itself if needed
             if (settings.appLock && settings.pin) {
               showLockScreen();
             } else {
@@ -431,7 +465,12 @@
     renderWeekStrip();
     el.todayFull.textContent = formatDateLong(new Date());
     renderDiaryGridSkeleton();
-    requestAnimationFrame(() => requestAnimationFrame(renderDiaryGrid));
+    showScreen('home'); // switch to Home first so the skeleton is actually the thing that paints
+    // hold the skeleton on screen for a beat so it's visible, then swap in the real
+    // grid — with pure localStorage data the real render is instant, so without a
+    // deliberate minimum delay the skeleton would replace itself in the same frame
+    // it appeared in and never actually be seen
+    setTimeout(renderDiaryGrid, 220);
     applyProfileEverywhere();
     renderStreak();
     renderMemory();
@@ -442,7 +481,6 @@
     renderMoodSummary();
     renderBadges();
     renderGlanceWidget();
-    showScreen('home');
     if (settings.reminderOn && 'Notification' in window && Notification.permission === 'granted') {
       scheduleReminder();
     }
@@ -3747,7 +3785,7 @@
     if (el.bookmarksList) el.bookmarksList.hidden = true;
     if (el.bookmarksFilterChip) el.bookmarksFilterChip.classList.remove('active');
     showScreen('history');
-    requestAnimationFrame(() => requestAnimationFrame(renderDiaryList));
+    setTimeout(renderDiaryList, 220);
   }
 
   let bookmarksFilterActive = false;
@@ -4127,13 +4165,13 @@
       }
     }));
     const max = Math.max(...counts, 1);
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       el.insightsChart.innerHTML = counts.map((c, i) => {
         const isToday = i === now.getDay();
         const h = c === 0 ? 4 : Math.round((c / max) * 52) + 6;
         return `<div class="chart-bar-wrap"><div class="chart-bar${c > 0 ? ' active' : ''}" style="height:${h}px"></div><span class="chart-bar-label">${'SMTWTFS'[i]}${isToday ? '•' : ''}</span></div>`;
       }).join('');
-    });
+    }, 220);
 
     // mood summary for last 7 days, one item per day (most recent mood that day)
     const dayMood = new Map();
