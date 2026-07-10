@@ -132,6 +132,62 @@ input, textarea { font-family: inherit; }
 .load-bar-fill { width: 0%; height: 100%; background: linear-gradient(90deg, var(--amber), var(--rose)); border-radius: 10px; transition: width 0.15s linear; }
 .load-pct { margin-top: 14px; font-size: 13px; color: var(--text-low); letter-spacing: 1px; font-family: var(--mono); }
 
+/* ============ OFFLINE SCREEN ============ */
+
+.offline-screen {
+  position: fixed; inset: 0; z-index: 99;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--bg); text-align: center; padding: 0 40px;
+  animation: offlineFadeIn 0.4s var(--ease) both;
+}
+@keyframes offlineFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.offline-illustration { position: relative; width: 96px; height: 96px; margin-bottom: 22px; }
+.offline-cloud {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: var(--text-low); animation: offlineDrift 3.2s ease-in-out infinite;
+}
+@keyframes offlineDrift { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.offline-slash {
+  position: absolute; width: 3px; height: 84px; background: var(--danger);
+  transform: rotate(45deg); border-radius: 4px; opacity: 0.85;
+  animation: offlineSlashIn 0.5s var(--ease) 0.15s both;
+}
+@keyframes offlineSlashIn { from { transform: rotate(45deg) scaleY(0); opacity: 0; } to { transform: rotate(45deg) scaleY(1); opacity: 0.85; } }
+.offline-pen {
+  position: absolute; bottom: -4px; right: -4px; width: 44px; height: 44px; border-radius: 50%;
+  background: var(--panel); border: 1px solid var(--panel-border); color: var(--amber);
+  display: flex; align-items: center; justify-content: center;
+  animation: offlinePenWiggle 2.4s ease-in-out infinite;
+}
+@keyframes offlinePenWiggle { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+
+.offline-title { font-family: var(--serif); font-size: 22px; font-weight: 600; color: var(--ink-dark-text); margin: 0 0 10px; }
+.offline-sub { font-size: 13.5px; color: var(--text-mid); line-height: 1.6; margin: 0 0 30px; max-width: 320px; }
+
+.offline-actions { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 280px; }
+.offline-retry-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px 20px; border-radius: 100px; background: var(--amber); color: #fff;
+  font-size: 14.5px; font-weight: 700; transition: transform 0.15s var(--ease);
+}
+.offline-retry-btn:active { transform: scale(0.96); }
+.offline-retry-btn svg { animation: offlineSpinIdle 0s; }
+.offline-retry-btn.retrying svg { animation: offlineSpin 0.8s linear infinite; }
+@keyframes offlineSpin { to { transform: rotate(360deg); } }
+.offline-continue-btn { padding: 10px; font-size: 13.5px; font-weight: 600; color: var(--text-mid); }
+.offline-continue-btn:active { opacity: 0.7; }
+
+.offline-banner {
+  display: flex; align-items: center; gap: 8px; justify-content: center;
+  padding: 9px 16px; margin: 0 0 10px; border-radius: 12px;
+  background: rgba(184,73,63,0.12); color: var(--danger);
+  font-size: 12px; font-weight: 600; animation: offlineFadeIn 0.3s var(--ease) both;
+}
+.offline-banner-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); flex-shrink: 0; animation: offlineDotPulse 1.6s ease-in-out infinite; }
+@keyframes offlineDotPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+[contenteditable].offline-locked { opacity: 0.6; cursor: default; }
+
 /* ============ HOME SCREEN ============ */
 
 .home-top { display: flex; align-items: center; justify-content: space-between; padding: 6px 0 0; gap: 8px; }
@@ -983,6 +1039,50 @@ input, textarea { font-family: inherit; }
   text-align: left; padding: 13px 4px; font-size: 14.5px; color: var(--amber); font-weight: 600; margin-top: 4px;
 }
 
+/* ============ ICON ROW BUTTONS ============ */
+/* Proper card-style buttons for settings/profile action lists (export, backup,
+   rate app, etc) — replaces plain colored text links with a real tappable row:
+   icon, label (+ optional subtitle), chevron. */
+
+.icon-row-btn {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 13px 14px; margin-top: 8px; border-radius: 14px;
+  background: var(--panel); border: 1px solid var(--panel-border);
+  text-align: left; transition: all 0.15s var(--ease);
+}
+.icon-row-btn:active { transform: scale(0.98); background: var(--amber-soft); }
+.icon-row-btn:first-of-type { margin-top: 10px; }
+
+.icon-row-btn-icon {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 34px; height: 34px; border-radius: 10px;
+  background: var(--amber-soft); color: var(--amber);
+}
+.icon-row-btn-icon svg { width: 17px; height: 17px; }
+
+.icon-row-btn-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.icon-row-btn-title { font-size: 14px; font-weight: 600; color: var(--text-hi); }
+.icon-row-btn-sub { font-size: 11.5px; color: var(--text-low); }
+
+.icon-row-btn-chevron { flex-shrink: 0; color: var(--text-low); opacity: 0.6; }
+.icon-row-btn-chevron svg { width: 15px; height: 15px; }
+
+/* danger variant (Clear all data, Remove photo) */
+.icon-row-btn.danger .icon-row-btn-icon { background: rgba(184,73,63,0.12); color: var(--danger); }
+.icon-row-btn.danger .icon-row-btn-title { color: var(--danger); }
+.icon-row-btn.danger:active { background: rgba(184,73,63,0.1); }
+
+/* compact variant for inline buttons (e.g. inside a sheet or under a card, not a
+   full settings-group list) — smaller, no border, closer to the previous "link" feel
+   but still clearly a real tappable chip */
+.icon-row-btn.compact {
+  padding: 9px 12px; margin-top: 10px; border-radius: 100px; width: auto; display: inline-flex;
+}
+.icon-row-btn.compact .icon-row-btn-icon { width: 22px; height: 22px; border-radius: 7px; }
+.icon-row-btn.compact .icon-row-btn-icon svg { width: 12px; height: 12px; }
+.icon-row-btn.compact .icon-row-btn-title { font-size: 12.5px; }
+
+
 .lang-options { display: flex; flex-direction: column; gap: 8px; }
 .lang-option {
   text-align: left; padding: 13px 16px; border-radius: 12px; background: var(--panel);
@@ -1198,7 +1298,12 @@ input, textarea { font-family: inherit; }
 .weekly-goal-text { flex: 1; min-width: 0; }
 .weekly-goal-title { font-family: var(--serif); font-size: 14.5px; font-weight: 600; color: var(--ink-dark-text); margin: 0 0 2px; }
 .weekly-goal-sub { font-size: 12px; color: var(--text-mid); margin: 0 0 6px; line-height: 1.4; }
-.weekly-goal-edit-btn { padding: 0; font-size: 12px; color: var(--amber); font-weight: 600; }
+.weekly-goal-edit-btn {
+  align-self: flex-start; margin-top: 2px; padding: 6px 12px; border-radius: 100px;
+  font-size: 11.5px; font-weight: 700; color: var(--amber); background: var(--amber-soft);
+  border: 1px solid var(--amber); transition: all 0.15s var(--ease);
+}
+.weekly-goal-edit-btn:active { transform: scale(0.95); }
 
 /* ============ INSIGHTS: RECAP CARD ============ */
 
@@ -1326,6 +1431,24 @@ input, textarea { font-family: inherit; }
 .chart-bar.active { background: linear-gradient(180deg, var(--amber), var(--rose)); }
 .chart-bar-label { font-size: 9.5px; color: var(--text-low); text-transform: uppercase; }
 
+/* ============ SKELETON LOADING STATES ============ */
+/* Shown briefly while a screen's real content is being computed/rendered, so
+   slower devices get a smooth placeholder instead of a blank flash. */
+
+.skeleton-card { position: relative; overflow: hidden; background: var(--panel) !important; border: 1px solid var(--panel-border); box-shadow: none !important; }
+.skeleton-card::before, .skeleton-card::after { display: none; } /* suppress mood-tint/decorative pseudo-elements while skeleton */
+.skeleton-shimmer {
+  position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 30%, var(--panel-border) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.4s ease-in-out infinite;
+}
+@keyframes skeletonShimmer { 0% { background-position: 160% 0; } 100% { background-position: -60% 0; } }
+
+.chart-bar.skeleton-bar { height: 30px; background: var(--panel-border); animation: skeletonPulse 1.3s ease-in-out infinite; }
+@keyframes skeletonPulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+
 /* ============ MOOD SUMMARY ============ */
 
 .mood-summary {
@@ -1436,8 +1559,8 @@ input, textarea { font-family: inherit; }
 
 /* ---- edit profile bottom sheet ---- */
 .edit-profile-avatar-row { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
-.edit-profile-avatar-actions { display: flex; flex-direction: column; gap: 2px; }
-.edit-profile-avatar-actions .settings-link-btn { margin-top: 0; padding: 8px 4px; }
+.edit-profile-avatar-actions { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.edit-profile-avatar-actions .icon-row-btn.compact { margin-top: 0; width: 100%; }
 
 .edit-field-label {
   display: block; font-size: 12px; font-weight: 700; color: var(--text-low);
