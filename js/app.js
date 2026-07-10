@@ -24,6 +24,8 @@
   const el = {
     loadingScreen: $('loadingScreen'), loadBarFill: $('loadBarFill'), loadPct: $('loadPct'),
     app: $('app'),
+    offlineScreen: $('offlineScreen'), offlineRetryBtn: $('offlineRetryBtn'), offlineContinueBtn: $('offlineContinueBtn'),
+    offlineBanner: $('offlineBanner'),
 
     homeScreen: $('homeScreen'), weekStrip: $('weekStrip'), todayFull: $('todayFull'),
     createNewBtn: $('createNewBtn'), homeHint: $('homeHint'), historyBtn: $('historyBtn'),
@@ -190,6 +192,84 @@
   let undoTimer = null, undoPayload = null;
   let autosaveTimer = null;
 
+  // ============ OFFLINE HANDLING ============
+  // All diary data lives in localStorage, so reading always works offline. Writing
+  // (new pages, voice notes, edits) is intentionally paused while offline — this app
+  // has no sync/conflict-resolution logic, so it's safer to be honest about it than
+  // to silently queue changes. isAppOffline() is checked before write actions;
+  // showOfflineScreen() takes over the whole screen on first launch with no
+  // connection, and the slim offlineBanner shows if the connection drops mid-use.
+
+  function isAppOffline() {
+    return typeof navigator !== 'undefined' && navigator.onLine === false;
+  }
+
+  // call this before any action that writes to a diary (adding a page, recording a
+  // voice note, etc). Returns true and shows a toast if the write should be blocked.
+  function blockIfOffline() {
+    if (!isAppOffline()) return false;
+    showToast("You're offline — writing will work again once you're back online.");
+    return true;
+  }
+
+  function showOfflineScreen() {
+    if (!el.offlineScreen) return;
+    el.offlineScreen.hidden = false;
+  }
+  function hideOfflineScreen() {
+    if (!el.offlineScreen) return;
+    el.offlineScreen.hidden = true;
+  }
+
+  function updateOfflineBanner() {
+    if (!el.offlineBanner) return;
+    el.offlineBanner.hidden = !isAppOffline();
+    applyOfflineWriteLock();
+  }
+
+  // physically disables typing in every text field while offline, rather than
+  // letting someone type and silently failing to persist it — matches the "you can
+  // read but not write" behaviour end to end, not just at the button level
+  function applyOfflineWriteLock() {
+    const offline = isAppOffline();
+    document.querySelectorAll('[data-field="headline"], [data-field="lines"], #fsHeadline, #fsBody').forEach(elNode => {
+      elNode.setAttribute('contenteditable', offline ? 'false' : 'true');
+      elNode.classList.toggle('offline-locked', offline);
+    });
+  }
+
+  function retryConnection() {
+    if (!el.offlineRetryBtn) return;
+    el.offlineRetryBtn.classList.add('retrying');
+    // there's no real "ping" endpoint to hit here — navigator.onLine is the best
+    // on-device signal available, so re-check it after a short beat so the retry
+    // button visibly does something instead of instantly flipping back
+    setTimeout(() => {
+      el.offlineRetryBtn.classList.remove('retrying');
+      if (!isAppOffline()) {
+        hideOfflineScreen();
+        showToast("You're back online");
+      } else {
+        showToast('Still offline — check your connection and try again.');
+      }
+    }, 700);
+  }
+
+  function wireOfflineHandling() {
+    window.addEventListener('online', () => {
+      hideOfflineScreen();
+      updateOfflineBanner();
+      showToast("You're back online");
+    });
+    window.addEventListener('offline', () => {
+      updateOfflineBanner();
+      showToast("You're offline — writing is paused");
+    });
+    if (el.offlineRetryBtn) el.offlineRetryBtn.addEventListener('click', retryConnection);
+    if (el.offlineContinueBtn) el.offlineContinueBtn.addEventListener('click', hideOfflineScreen);
+    updateOfflineBanner();
+  }
+
   // ============ LOADING SEQUENCE ============
 
   function runLoadingSequence() {
@@ -209,6 +289,8 @@
           setTimeout(() => {
             el.loadingScreen.hidden = true;
             el.app.hidden = false;
+            wireOfflineHandling();
+            if (isAppOffline()) showOfflineScreen();
             if (settings.appLock && settings.pin) {
               showLockScreen();
             } else {
@@ -348,7 +430,8 @@
     maybeConsumeStreakFreeze();
     renderWeekStrip();
     el.todayFull.textContent = formatDateLong(new Date());
-    renderDiaryGrid();
+    renderDiaryGridSkeleton();
+    requestAnimationFrame(() => requestAnimationFrame(renderDiaryGrid));
     applyProfileEverywhere();
     renderStreak();
     renderMemory();
@@ -848,6 +931,19 @@
   }
 
   // ---------- diary grid (Recent Diary) ----------
+  // shows 2-3 pulsing placeholder cards immediately, then swaps in real content —
+  // most renders here are instant (localStorage), but this keeps the transition
+  // smooth on slower/low-end phones and avoids a blank flash while HTML builds
+  function renderDiaryGridSkeleton() {
+    if (!el.diaryGrid) return;
+    el.diaryGrid.className = 'diary-grid';
+    el.diaryGrid.innerHTML = Array.from({ length: 3 }).map(() => `
+      <div class="diary-grid-card skeleton-card">
+        <div class="skeleton-shimmer"></div>
+      </div>
+    `).join('');
+  }
+
   function renderDiaryGrid() {
     if (!el.diaryGrid) return;
     el.homeHint.textContent = diaries.length === 0 ? 'No diary yet' : diaries.length === 1 ? 'You have 1 diary' : `You have ${diaries.length} diaries`;
@@ -1034,6 +1130,7 @@
   }
 
   function confirmCreate() {
+    if (blockIfOffline()) return;
     const name = el.diaryNameInput.value.trim();
     const headline = el.headlineInput.value.trim();
     const text = el.firstEntryInput.value.trim();
@@ -1305,6 +1402,7 @@
       renderVoiceClipsForSheet(rightLayer, diary.pages[ri], ri);
       renderPhotosForSheet(leftLayer, diary.pages[li], li);
       renderPhotosForSheet(rightLayer, diary.pages[ri], ri);
+      applyOfflineWriteLock();
     };
 
     if (direction) {
@@ -1629,6 +1727,7 @@
   }
 
   function addPageAndGo() {
+    if (blockIfOffline()) return;
     const diary = currentDiary();
     if (!diary) return;
     diary.pages.push({ id: uid(), headline: '', date: new Date().toISOString(), text: '', stickers: [], voiceClips: [], photos: [], tags: [], bookmarked: false });
@@ -2275,6 +2374,7 @@
   let audioCtxForAnalysis = null;
 
   function startVoiceNoteRecording(target) {
+    if (blockIfOffline()) return;
     if (mediaRecorder && mediaRecorder.state === 'recording') return;
     const diary = currentDiary();
     if (!diary) return;
@@ -2579,6 +2679,7 @@
     renderFsBookmark(page);
     renderFsTags(page);
     renderCapsuleLock(page);
+    applyOfflineWriteLock();
 
     el.fullscreenReader.hidden = false;
     el.bottomNav.classList.add('nav-hidden');
@@ -2988,6 +3089,8 @@
       recognizer.stop();
       return;
     }
+
+    if (blockIfOffline()) return;
 
     if (target === 'page') {
       const idx = getFocusedPageIndex();
@@ -3637,13 +3740,14 @@
   // ============ HISTORY SCREEN ============
 
   function openHistoryScreen() {
-    renderDiaryList();
+    renderDiaryListSkeleton();
     el.searchInput.value = '';
     el.searchResults.hidden = true;
     el.diaryList.hidden = false;
     if (el.bookmarksList) el.bookmarksList.hidden = true;
     if (el.bookmarksFilterChip) el.bookmarksFilterChip.classList.remove('active');
     showScreen('history');
+    requestAnimationFrame(() => requestAnimationFrame(renderDiaryList));
   }
 
   let bookmarksFilterActive = false;
@@ -3692,6 +3796,14 @@
         });
       });
     });
+  }
+
+  function renderDiaryListSkeleton() {
+    el.diaryList.innerHTML = Array.from({ length: 4 }).map(() => `
+      <div class="diary-card skeleton-card">
+        <div class="skeleton-shimmer"></div>
+      </div>
+    `).join('');
   }
 
   function renderDiaryList() {
@@ -3996,6 +4108,12 @@
     renderRecapCard();
     renderWeeklyGoalCard();
 
+    // chart skeleton first, so the bars don't just pop in with no transition on
+    // slower devices while the rest of the screen's numbers are being computed
+    el.insightsChart.innerHTML = Array.from({ length: 7 }).map(() =>
+      `<div class="chart-bar-wrap"><div class="chart-bar skeleton-bar"></div><span class="chart-bar-label"></span></div>`
+    ).join('');
+
     // weekly chart (reuse same counts logic as home)
     const counts = new Array(7).fill(0);
     const startOfWeek = new Date(now);
@@ -4009,11 +4127,13 @@
       }
     }));
     const max = Math.max(...counts, 1);
-    el.insightsChart.innerHTML = counts.map((c, i) => {
-      const isToday = i === now.getDay();
-      const h = c === 0 ? 4 : Math.round((c / max) * 52) + 6;
-      return `<div class="chart-bar-wrap"><div class="chart-bar${c > 0 ? ' active' : ''}" style="height:${h}px"></div><span class="chart-bar-label">${'SMTWTFS'[i]}${isToday ? '•' : ''}</span></div>`;
-    }).join('');
+    requestAnimationFrame(() => {
+      el.insightsChart.innerHTML = counts.map((c, i) => {
+        const isToday = i === now.getDay();
+        const h = c === 0 ? 4 : Math.round((c / max) * 52) + 6;
+        return `<div class="chart-bar-wrap"><div class="chart-bar${c > 0 ? ' active' : ''}" style="height:${h}px"></div><span class="chart-bar-label">${'SMTWTFS'[i]}${isToday ? '•' : ''}</span></div>`;
+      }).join('');
+    });
 
     // mood summary for last 7 days, one item per day (most recent mood that day)
     const dayMood = new Map();
