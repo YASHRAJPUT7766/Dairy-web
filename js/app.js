@@ -22,7 +22,7 @@
   const $ = (id) => document.getElementById(id);
 
   const el = {
-    loadingScreen: $('loadingScreen'), loadBarFill: $('loadBarFill'), loadPct: $('loadPct'),
+    loadingScreen: $('loadingScreen'),
     app: $('app'),
     offlineScreen: $('offlineScreen'), offlineRetryBtn: $('offlineRetryBtn'), offlineContinueBtn: $('offlineContinueBtn'),
     offlineBanner: $('offlineBanner'),
@@ -311,32 +311,20 @@
     loadSettings();
     applyDarkMode();
     document.documentElement.setAttribute('data-accent', settings.accent || 'amber');
-    let pct = 0;
-    const iv = setInterval(() => {
-      pct += Math.random() * 18 + 8;
-      if (pct >= 100) {
-        pct = 100;
-        clearInterval(iv);
-        el.loadBarFill.style.width = '100%';
-        el.loadPct.textContent = '100%';
-        setTimeout(() => {
-          el.loadingScreen.classList.add('fade-out');
-          setTimeout(() => {
-            el.loadingScreen.hidden = true;
-            el.app.hidden = false;
-            wireOfflineHandling(); // this also runs an immediate connectivity check and shows the offline screen itself if needed
-            if (settings.appLock && settings.pin) {
-              showLockScreen();
-            } else {
-              initHome();
-            }
-          }, 600);
-        }, 250);
-        return;
+
+    // Skeleton is already visible in the initial HTML (no white flash).
+    // Just do the real setup work, then swap skeleton -> real app as soon as it's ready.
+    el.loadingScreen.classList.add('fade-out');
+    setTimeout(() => {
+      el.loadingScreen.hidden = true;
+      el.app.hidden = false;
+      wireOfflineHandling(); // this also runs an immediate connectivity check and shows the offline screen itself if needed
+      if (settings.appLock && settings.pin) {
+        showLockScreen();
+      } else {
+        initHome();
       }
-      el.loadBarFill.style.width = pct + '%';
-      el.loadPct.textContent = Math.floor(pct) + '%';
-    }, 180);
+    }, 400);
   }
 
   // ============ STORAGE ============
